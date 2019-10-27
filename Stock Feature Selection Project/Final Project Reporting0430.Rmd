@@ -1,0 +1,482 @@
+---
+title: "Final Project"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(rmarkdown)
+library(knitr)
+library(Hmisc)
+library(DT)
+library(scales)
+library(data.table)
+
+library(prettydoc)
+library(data.table)
+library(DT)
+#install.packages("readxl")
+library(readxl)
+library(ggplot2)
+#install.packages("quantmod")
+library(quantmod)
+#install.packages("xts")
+library(xts)
+#install.packages("zoo")
+library(zoo)
+#install.packages("forecast")
+library(forecast)
+#install.packages("fpp")
+library(fpp)
+#install.packages("fpp2")
+library(fpp2)
+#install.packages("dplyr")
+library(dplyr)
+#install.packages("ggthemes")
+library(ggthemes)
+#install.packages("e1071")
+library(e1071)
+assignInNamespace("cedta.override", c(data.table:::cedta.override,"rmarkdown"), "data.table")
+
+
+opts_chunk$set(echo = FALSE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+
+```
+
+
+```{r read_data_intro, echo=FALSE, eval=TRUE, results='hide'}
+dat = readRDS("../Data/dat.daily.rds")
+dat_impute = readRDS("../Data/Imputed.14.rds")
+```
+
+
+
+```{r constants, echo=FALSE}
+sector.name <- "Sectors"
+stocks.name <- "Stocks"
+stocks.clean.name <- "Stocks_Clean"
+return.name <- "Return"
+dates.name <- "Dates"
+year.name <- "Year"
+close.price.name <- "PX_OFFICIAL_CLOSE"
+
+train.start.date.fourty.month <- "2014-11-07"
+train.start.date.one.year <- "2017-03-01"
+train.start.date.half.year <- "2017-09-01"
+train.start.date.three.month <- "2017-12-01"
+test.start.date <- "2018-03-01"
+
+train.start.date.all.month.new <- "2014-11-07"
+train.start.date.one.year.new <- "2018-01-01"
+train.start.date.half.year.new <- "2018-07-01"
+train.start.date.three.month.new <- "2018-10-01"
+
+past.period.variables <- c('total','annual','semi-annual','quarter')
+future.window.variables <- c(10,30,60,90)
+
+weekdays_2019 <- seq(as.Date('2019-01-01'),as.Date('2019-12-31'),by = 1)
+weekdays_2019 <- weekdays_2019[!weekdays(weekdays_2019) %in% c('Saturday','Sunday')]
+future.max <- length(weekdays_2019)
+test.nrow <- 218
+num.lines <- 20
+
+dat <- dat[,Dates := as.Date(get(dates.name))] 
+
+min.date.time<-dat[,min(get(dates.name))]
+max.date.time<-dat[,max(get(dates.name))]
+equity.variable<-dat[,unique(get(stocks.name))]
+sector.variable<-dat[,unique(get(sector.name))]
+factor.variable<-names(dat)[6:22]
+```
+
+```{r my_functions, echo=FALSE}
+
+percentage.table <- function(x, digits = 1){
+  tab <- table(x)
+  percentage.tab <- 100*tab/(sum(tab))
+  rounded.tab <- round(x = percentage.tab, digits = digits)
+  return(rounded.tab)
+}
+
+max.with.na <- function(x){
+  y <- as.numeric(x[!is.na(as.numeric(x))])
+  if(length(y) == 0){
+    return(NA_real_)
+  }
+  if(length(y) > 0){
+    return(x = max(y, na.rm = TRUE))
+  }
+}
+
+round.numerics <- function(x, digits){
+  if(is.numeric(x)){
+    x <- round(x = x, digits = digits)
+  }
+  return(x)
+}
+```
+
+
+Introduction
+=====================================  
+
+We are analyzing data from stock.
+
+Click on the tabs to see different reports.
+
+
+
+Stock Price Comparision
+===================================
+
+
+Row {data-height=500}
+-------------------------------------
+
+```{r }
+inputPanel(
+  selectInput(inputId="equity_variable", label = "Select Stock:", choices = equity.variable , selected = equity.variable[1],multiple = TRUE),
+  dateInput(inputId="start_time_variable",label="Start Time:",value="2014-12-1",format="yyyy-mm-dd",min=min.date.time,max=max.date.time),
+  dateInput(inputId="end_time_variable",label="End Time:",value="2018-12-31",format="yyyy-mm-dd",min=min.date.time,max=max.date.time)
+  
+)
+
+
+
+renderDataTable({
+equity.name<-input$equity_variable
+date.start<-input$start_time_variable
+date.end<-input$end_time_variable
+
+Equity=dat[get(stocks.name) %in% equity.name & get(dates.name)>date.start& get(dates.name)<date.end ,]
+  
+  
+measure.stock<-Equity[,.('Mean'=mean(get(close.price.name),na.rm=TRUE),'SD'=sd(get(close.price.name),na.rm=TRUE),'Var'=nth(x=get(close.price.name),n=floor(0.05 * .N))),keyby=c(stocks.name,sector.name)]
+
+
+temp=merge(measure.stock,Equity,by=stocks.name)
+
+measure.stock$ES<-temp[get(close.price.name)< `Var`,mean(get(close.price.name),na.rm=TRUE),keyby=stocks.name] $V1
+rm(temp)
+
+datatable(measure.stock[,lapply(X=.SD,FUN=round.numerics,digits=1)])
+
+})
+
+renderPlot({
+equity.name<-input$equity_variable
+date.start<-input$start_time_variable
+date.end<-input$end_time_variable
+
+Equity=dat[get(stocks.name) %in% equity.name & get(dates.name)>date.start& get(dates.name)<date.end ,]
+
+
+ggplot() + 
+  geom_line(data = Equity, aes(x=Dates, y = get(close.price.name),group=Stocks, colour = Stocks ))+theme(axis.text.x = element_text(angle = 90, hjust = 1))+scale_x_date(breaks=date_breaks("3 month"))
+
+
+  
+})
+
+
+```
+
+
+Factor Ordering within sectors
+===================================
+
+Row {data-height=800}
+-------------------------------------
+```{r }
+inputPanel(
+  selectInput(inputId="sector_variable", label = "Select Sector:", choices = sector.variable , selected = equity.variable[1]),
+  selectInput(inputId="factor_variable",label="Select Factor",choices=factor.variable, selected=factor.variable[1]),
+  sliderInput(inputId="num",label="Select number of stock",min=1,max=20,value=5,step=1)
+)
+
+renderPlot({
+sector=input$sector_variable
+measure.name=input$factor_variable
+Energy.Equity<-dat[get(sector.name)==sector,.(Mean=mean(get(measure.name),na.rm=TRUE)),keyby=stocks.name]
+Energy.Equity[, Stocks := gsub(x = get(stocks.name), pattern = " US Equity", replacement = "")]
+
+
+
+Energy.Equity=Energy.Equity[,lapply(X=.SD,FUN=round.numerics,digits=1),.SDcols='Mean',keyby=stocks.name]
+setorderv(Energy.Equity,cols='Mean',order=-1,na.last=TRUE)
+Energy.Equity=Energy.Equity[1:input$num,]
+max=Energy.Equity[1,]$Mean
+min=min(Energy.Equity$Mean,na.rm=TRUE)
+barplot(height=Energy.Equity[,Mean],space=0.01, las = 1, main = measure.name, ylab = sprintf('average of %s',measure.name), xaxt = "n", axes = T, col = "dodgerblue",ylim=c(-100,max+100))
+
+
+
+space_val=0
+text(x = -0.5 + 1.02*1:Energy.Equity[!is.na(Mean), .N], y = -5, labels = Energy.Equity[!is.na(Mean), get(stocks.name)], srt = 45, pos = 2)
+text(x = -0.4 + 1:Energy.Equity[, .N] * (1+space_val), y = Energy.Equity[, Mean]-5, labels = sprintf("%s", Energy.Equity[, Mean]), pos = 3)
+  
+  
+}
+)
+
+```
+
+
+ARIMA Model
+===================================
+
+
+Row {data-height=800}
+-------------------------------------
+
+```{r ARIMA ML comparison}
+inputPanel(
+  selectInput(inputId = "mc_stock", label = "Select Stock:", choices = equity.variable,selected = equity.variable[1] ),
+  selectInput(inputId = "mc_past_period", label = "Select past period:", choices = past.period.variables,selected = past.period.variables[1])
+)
+
+#input <- list(mc_stock = equity.variable[1], mc_past_period = past.period.variables[4])
+
+renderPlot({
+ 
+  arima.model.plot <- function(dt,stock.name,train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = test.nrow)
+  as.data.table(auto_arima_model_forecast)
+   
+  test[,forecast := as.numeric(auto_arima_model_forecast$mean)]
+  subdt_with_forecast <- merge(x = subdt,y = test,by = c(dates.name, return.name), all.x = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  subdt_with_forecast <- subdt_with_forecast[get(dates.name) >= as.Date(train.start.date)]
+  setnames(x = subdt_with_forecast, old = "value", new = "Return")
+  
+  ggplot(subdt_with_forecast, aes(x=Dates, y=Return, group=variable, color=variable)) + geom_line()
+  }
+  
+  
+  if(input$mc_past_period=='total'){
+  train.start.date<-train.start.date.fourty.month 
+  }
+
+  if(input$mc_past_period=='annual'){
+    train.start.date<-train.start.date.one.year
+  }
+  
+  if(input$mc_past_period=='semi-annual'){
+    train.start.date<-train.start.date.half.year
+  }
+  if(input$mc_past_period=='quarter'){
+    train.start.date<-train.start.date.three.month
+  }
+arima.model.plot(dt = dat, stock.name = input$mc_stock, train.start.date = train.start.date)
+})
+
+renderDataTable({
+
+  arima.model.info <- function(dt,stock.name,train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,close.price.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),][,c(1,3)]
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),][,c(1,3)]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = test.nrow)
+  as.data.table(auto_arima_model_forecast)
+  plot(auto_arima_model_forecast)
+  accuracy(auto_arima_model_forecast, x = test[,get(return.name)])
+  }
+  
+  if(input$mc_past_period=='total'){
+  train.start.date<-train.start.date.fourty.month 
+  }
+
+  if(input$mc_past_period=='annual'){
+    train.start.date<-train.start.date.one.year
+  }
+  
+  if(input$mc_past_period=='semi-annual'){
+    train.start.date<-train.start.date.half.year
+  }
+  if(input$mc_past_period=='quarter'){
+    train.start.date<-train.start.date.three.month
+  }
+  
+arima.model.summary <- arima.model.info(dt = dat, stock.name = input$mc_stock, train.start.date = train.start.date)
+
+  RMSE <- list("training_set_ARIMA","test_set_ARIMA")
+  rate <- list(arima.model.summary[1,2], arima.model.summary[2,2])
+  res <- data.table(RMSE, rate)
+  datatable(res) 
+}  
+)
+```
+
+ARIMA Forecast
+===================================
+
+
+Row {data-height=800}
+-------------------------------------
+
+```{r ARIMA forecast}
+inputPanel(
+  selectInput(inputId = "af_stock", label = "Select Stock:", choices = equity.variable,selected = equity.variable[1] ),
+  selectInput(inputId = "af_past_period", label = "Select past period:", choices = past.period.variables,selected = past.period.variables[1]),
+  selectInput(inputId = "af_future_window", label = "Select future window:", choices = future.window.variables,selected = future.window.variables[1])
+)
+
+#input <- list(af_stock = equity.variable[1], af_past_period = past.period.variables[2], af_future_window = future.window.variables[1])
+
+renderPlot({
+  
+  arima.model.plot.future <- function(dt,stock.name,train.start.date, future.window){
+  require(data.table)
+  dt <- setDT(dt)
+  library(ggplot2)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = future.max)
+  as.data.table(auto_arima_model_forecast)
+  
+  forecast <- as.list(as.numeric(auto_arima_model_forecast$mean))
+  Dates <- as.list(weekdays_2019)
+  future <- data.table(Dates,forecast)
+  future <- future[, Dates:= as.Date(unlist(future[, get(dates.name)]))]
+  future <- future[, forecast:= as.numeric(unlist(future[, get("forecast")]))][1:future.window]
+  subdt_with_forecast <- merge(x = train,y = future,by = dates.name, all.x = TRUE, all.y = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  setnames(x = subdt_with_forecast, old = "value", new = "Return")
+  
+  ggplot(subdt_with_forecast, aes(x=Dates, y=Return, group=variable, color=variable)) + geom_line()
+}
+  
+  
+  if(input$af_past_period=='total'){
+  train.start.date<-train.start.date.all.month.new 
+  }
+
+  if(input$af_past_period=='annual'){
+    train.start.date<-train.start.date.one.year.new
+  }
+  
+  if(input$af_past_period=='semi-annual'){
+    train.start.date<-train.start.date.half.year.new
+  }
+  if(input$af_past_period=='quarter'){
+    train.start.date<-train.start.date.three.month.new
+  }
+arima.model.plot.future(dt = dat, stock.name = input$af_stock, train.start.date = train.start.date, future.window = input$af_future_window)
+})
+
+
+```
+
+
+SVM Model
+===================================
+
+
+Row {data-height=800}
+-------------------------------------
+
+```{r ARIMA SVM comparison}
+inputPanel(
+  selectInput(inputId = "svm_stock", label = "Select Stock:", choices = equity.variable,selected = equity.variable[1] ),
+  selectInput(inputId = "svm_past_period", label = "Select past period:", choices = past.period.variables,selected = past.period.variables[1])
+)
+
+#input <- list(mc_stock = equity.variable[1], mc_past_period = past.period.variables[4])
+
+renderPlot({
+  check_constant <- function(dt){
+    which(apply(dt, 2, function(x) length(unique(x))) != 1)
+  }
+  svm.model.plot <- function(dt, stock.name, train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  subdt <- dt[get(stocks.name) == stock.name, ]
+  subdt$Month <- as.factor(subdt$Month)
+  train <- subdt[as.Date(get(dates.name)) >= as.Date(train.start.date) & as.Date(get(dates.name)) < as.Date(test.start.date), ]
+  non_constant <- check_constant(train)
+  non_constant <- as.vector(non_constant[-1])
+  test <- subdt[as.Date(get(dates.name)) >= as.Date(test.start.date), ]
+  svm_model <- svm(Return~., data = train[, ..non_constant], kernal = "sigmoid", cost = 8)
+  svm_predict <- predict(svm_model, test[, ..non_constant])
+  
+
+  test$Pred <- svm_predict
+  test_result <- test[, c(1, 5, 22)]
+  test_data_long <- melt(test_result, id="Dates")
+  
+  ggplot(data=test_data_long,
+       aes(x=Dates, y=value, colour=variable)) +
+       geom_line()
+  }
+  
+  if(input$svm_past_period=='total'){
+  train.start.date<-train.start.date.fourty.month 
+  }
+  if(input$svm_past_period=='annual'){
+    train.start.date<-train.start.date.one.year
+  }
+  if(input$svm_past_period=='semi-annual'){
+    train.start.date<-train.start.date.half.year
+  }
+  if(input$svm_past_period=='quarter'){
+    train.start.date<-train.start.date.three.month
+  }
+  
+  svm.model.plot(dt = dat_impute, stock.name = input$svm_stock, train.start.date = train.start.date)
+})
+
+renderDataTable({
+  check_constant <- function(dt){
+    which(apply(dt, 2, function(x) length(unique(x))) != 1)
+  }
+  
+  svm.model.info <- function(dt, stock.name, train.start.date){
+    require(data.table)
+    dt <- setDT(dt)
+    subdt <- dt[get(stocks.name) == stock.name, ]
+    subdt$Month <- as.factor(subdt$Month)
+    train <- subdt[as.Date(get(dates.name)) >= as.Date(train.start.date) & as.Date(get(dates.name)) < as.Date(test.start.date), ]
+    non_constant <- check_constant(train)
+    non_constant <- as.vector(non_constant[-1])
+    test <- subdt[as.Date(get(dates.name)) >= as.Date(test.start.date), ]
+    svm_model <- svm(Return~., data = train[, ..non_constant], kernal = "sigmoid", cost = 8)
+    svm_predict <- predict(svm_model, test[, ..non_constant])      
+    accu <- accuracy(svm_predict, x = test[,get(return.name)])
+    res <- list("ME" = accu[1], "RMSE" = accu[2])
+    res <- setDT(res)
+    rownames(res) <- stock.name
+    datatable(res)
+  }
+    
+  if(input$svm_past_period=='total'){
+    train.start.date<-train.start.date.fourty.month 
+  }
+  if(input$svm_past_period=='annual'){
+      train.start.date<-train.start.date.one.year
+  }
+  if(input$svm_past_period=='semi-annual'){
+      train.start.date<-train.start.date.half.year
+  }
+  if(input$svm_past_period=='quarter'){
+      train.start.date<-train.start.date.three.month
+  }
+    
+  svm.model.summary <- svm.model.info(dt = dat_impute, stock.name = input$svm_stock, train.start.date = train.start.date)
+}  
+)
+```
+

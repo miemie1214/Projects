@@ -1,0 +1,1873 @@
+---
+title: "ADS Final Project - Team O"
+author: "Yiyang Fu yf2473@columbia.edu, Wenbin Zhou wz2444@columbia.edu, Xinyi Qian xq2190@columbia.edu, Lu Yin ly242@columbia.edu"
+date: ""
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE, eval = TRUE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+```
+
+```{r libraries, include=FALSE}
+# Note:  If loading any of the libraries below generates an error, then use the install.packages function to install them first.
+#install.packages("prettydoc")
+library(prettydoc)
+#install.packages("data.table")
+library(data.table)
+#install.packages("DT")
+library(DT)
+#install.packages("readxl")
+library(readxl)
+#install.packages("ggplot2")
+library(ggplot2)
+#install.packages("quantmod")
+library(quantmod)
+#install.packages("xts")
+library(xts)
+#install.packages("zoo")
+library(zoo)
+#install.packages("forecast")
+library(forecast)
+#install.packages("fpp")
+library(fpp)
+#install.packages("fpp2")
+library(fpp2)
+#install.packages("dplyr")
+library(dplyr)
+#install.packages("ggthemes")
+library(ggthemes)
+#install.packages("scales")
+library(scales)
+#install.packages("Hmisc")
+library(Hmisc)
+#install.packages("corrplot")
+library(corrplot)
+#install.packages("e1071")
+library(e1071)
+```
+
+```{r constants, echo=FALSE}
+sector.name <- "Sectors"
+stocks.name <- "Stocks"
+stocks.clean.name <- "Stocks_Clean"
+return.name <- "Return"
+dates.name <- "Dates"
+year.name <- "Year"
+close.price.name <- "PX_OFFICIAL_CLOSE"
+
+
+train.start.date.fourty.month <- "2014-11-07"
+train.start.date.one.year <- "2017-03-01"
+train.start.date.half.year <- "2017-09-01"
+train.start.date.three.month <- "2017-12-01"
+test.start.date <- "2018-03-01"
+train.start.date.all.month.new <- "2014-11-07"
+train.start.date.one.year.new <- "2018-01-01"
+train.start.date.half.year.new <- "2018-07-01"
+train.start.date.three.month.new <- "2018-10-01"
+past.period.variables <- c('total','annual','semi-annual','quarter')
+future.window.variables <- c(10,30,60,90)
+
+weekdays_2019 <- seq(as.Date('2019-01-01'),as.Date('2019-12-31'),by = 1)
+weekdays_2019 <- weekdays_2019[!weekdays(weekdays_2019) %in% c('Saturday','Sunday')]
+future.max <- length(weekdays_2019)
+
+test.nrow <- 218
+num.lines <- 20
+```
+
+```{r my_functions, echo=FALSE}
+max.with.na <- function(x){
+  y <- as.numeric(x[!is.na(as.numeric(x))])
+  if(length(y) == 0){
+    return(NA_real_)
+  }
+  if(length(y) > 0){
+    return(x = max(y, na.rm = TRUE))
+  }
+}
+
+round.numerics <- function(x, digits){
+  if(is.numeric(x)){
+    x <- round(x = x, digits = digits)
+  }
+  return(x)
+}
+
+```
+
+
+## Introduction: 
+
+Stock markets plays an important role in the whole financial market. More and more people enter the equity market these years. How to pick a good stock is a common question for most investors. 
+
+A stock return may be affected by the whole financial market or macroeconomic environment. For a good stock, it usually has a better performance than the average stock performance. S&P 500 index is an American stock market index based on the market capitalizations of 500 large companies having common stock which is usually chosen as a benchmark to measure the average performance of the whole stock market. We are trying to select the features of that could contribute to the specific stock outperformance over S&P 500 index performance. 
+
+Besides, when people buy the stocks, people always reviews the historical performance and company’s financial report to decide whether invest or not. We wonder if we could use historical performance of the return to predict future stock performance and how the factors which we got from company’s financial report to help us to explain the future trend of the stock performance. 
+
+
+## Sources of Data:
+
+Our data obtained from the API of Bloomberg terminal. First, we randomly selected 100 stocks equally from 5 industries: Energy, Financial Services, Industry, Real Estates and Technology. We have total 6 raw data sets. Five of them contains Dates, Sectors, Stock Names, Daily Closing Prices and total 17 of financial ratios. The financial ratios we chose contains valuation factors, growth factors, asset structures and technical analysis in financial analysis One of them contains monthly return of sp500. Our entire time periods are from Nov. 2014 to Dec. 2018 (50 month in total). 
+
+### Raw data set
+
+**Financial Services.xlsx**:  Stock information in the financial services sector.
+
+**Energy.xlsx**:  Stock information in the Energy sector.
+
+**Industry.xlsx**: Stock information in the Industry.xlsx sector.
+
+**Real Estate.xlsx**: Stock information in the Real Estate sector.
+
+**Tech.xlsx**: Stock information in the Tech sector.
+
+**sp500.csv**: Benchmark using in feature selection (Monthly Return).
+
+### Variables
+
+**Dates**: Daily time
+
+**Sectors**: Sectors of each stocks
+
+**Stocks**: Name of the stocks
+
+**PX_OFFICIAL_CLOSE**: Everyday closing price of each stocks
+
+**Return**: Daily return of each stocks
+
+
+**PE_RATIO**: The price-to-earnings ratio (P/E ratio) is the ratio for valuing a company that measures its current share price relative to its per-share earnings (EPS).
+
+**PX_TO_BOOK_RATIO**: Companies use the price-to-book ratio to compare a firm's market to book value by dividing price per share by book value per share (BVPS).
+
+**PX_TO_SALES_RATIO**:  The price-to-sales (P/S) ratio is a valuation ratio that compares a company’s stock price to its revenues.
+
+**PX_TO_FREE_CASH_FLOW**: Price to free cash flow is an equity valuation metric used to compare a company's per-share market price to its per-share amount of free cash flow (FCF).
+
+**EQY_DPS**: Dividend per share (DPS) is the sum of declared dividends issued by a company for every ordinary share outstanding.       
+
+**RETURN_COM_EQY**: Return on equity (ROE) is a measure of financial performance calculated by dividing net income by shareholders' equity.
+
+**RETURN_ON_ASSET**: Return on assets (ROA) is an indicator of how profitable a company is relative to its total assets.
+
+**SALES_GROWTH**: The growth of sales.
+
+**EBITDA_GROWTH**: The growth of EBITDA.
+
+**EBITDA**: EBITDA, or earnings before interest, taxes, depreciation and amortization, is a measure of a company's overall financial performance and is used as an alternative to simple earnings or net income in some circumstances.
+
+**PROF_MARGIN**: Profit margin is one of the commonly used profitability ratios to gauge profitability of a business activity.
+
+**TOT_DEBT_TO_TOT_ASSET**: Total debt to total assets is a leverage ratio that defines the total amount of debt relative to assets.
+
+**ASSET_TURNOVER**: The asset turnover ratio measures the value of a company's sales or revenues relative to the value of its assets.  
+
+**NET_FIX_ASSET_TURN**: The fixed asset turnover ratio (FAT) is, in general, used by analysts to measure operating performance.
+
+**INVENT_TURN**: The inventory turnover ratio is an important measure of how well a company generates sales from its inventory.
+
+**RETURN_ON_INV_CAPITAL**: Return on invested capital is a calculation used to assess a company's efficiency at allocating the capital under its control to profitable investments.
+
+**TURNOVER**: Turnover is an accounting concept that calculates how quickly a business conducts its operations.
+
+
+```{r}
+# Import data downloading from Bloombergs
+Energy <- read_excel("../Data/Energy.xlsx")
+Industry <- read_excel("../Data/Industry.xlsx")
+Financial_Services <- read_excel("../Data/Financial Services.xlsx")
+Real_Estate <- read_excel("../Data/Real Estate.xlsx")
+Tech <- read_excel("../Data/Tech.xlsx")
+sp500<- read.csv("../Data/SP500monthly.csv")
+```
+
+```{r warning=FALSE,include=FALSE}
+# Full Data Set
+dat.daily <- rbind(setDT(Energy), setDT(Financial_Services), setDT(Industry), setDT(Real_Estate), setDT(Tech), fill=TRUE)
+
+# Add Month and Year 
+dat.daily$Month <- months(dat.daily$Dates)
+dat.daily$Year <- year(dat.daily$Dates)
+dat <- dat.daily
+dat <- dat[,Dates := as.Date(get(dates.name))] 
+```
+
+```{r show_header, echo=FALSE, comment=""}
+datatable(data = dat[1:num.lines,])
+```
+
+
+## Examination of the Data: 
+
+The quality of the data is great. It only contains small proportion of missing values. It is necessary to reconstructure the data since we need to select effective financial ratios before using machine learning techniques to predict the return of the stocks. 
+
+## Your Investigation: 
+
+### Stock and factor analysis:
+
+#### Sector comparision
+
+```{r sector comparision, echo= FALSE}
+stock<-dat[,.('Mean'=mean(get(return.name),na.rm=TRUE),'SD'=sd(get(return.name),na.rm=TRUE)),keyby=c(stocks.name,sector.name)]
+mean.name='Mean'
+sd.name='SD'
+sector<-stock[,.('Mean'=mean(get(mean.name),na.rm=TRUE),'SD'=mean(get(sd.name),na.rm=TRUE)),keyby=c(sector.name)]
+datatable(sector)
+```
+
+We first do the comparision between sectors. We could find that the return is almost 0. That is true. As based on theory, the return usually follow the standardized normal distribution with mean zero. From this table, we could find that energy industry have higher mean return with highest standard deviation while industrials have lowest mean with lowest standard deviation. This comply with our common sense that higher return always have higher risk. 
+
+#### Stock price summary
+
+```{r stock price summary, echo= FALSE}
+measure.stock<-dat[,.('Mean'=mean(get(close.price.name),na.rm=TRUE),'SD'=sd(get(close.price.name),na.rm=TRUE),'Var'=nth(x=get(close.price.name),n=floor(0.05 * .N))),keyby=c(stocks.name,sector.name)]
+
+measure.stock<-dat[,.('Mean'=mean(get(close.price.name),na.rm=TRUE),'SD'=sd(get(close.price.name),na.rm=TRUE),'Var'=nth(x=get(close.price.name),n=floor(0.05 * .N))),keyby=c(stocks.name)]
+
+temp=merge(measure.stock,dat,by=stocks.name)
+
+measure.stock$ES<-temp[get(close.price.name)< `Var`,mean(get(close.price.name),na.rm=TRUE),keyby=stocks.name] $V1
+rm(temp)
+datatable(measure.stock[1:10])
+```
+
+We also calculate the mean and standard deviation of the price of the each stock and also calculate Value at risk and expected shortfall which are two of risk measures.Value at risk measures the minimal loss at 95% confidence in the past. ES measures the expected value below the Value at risk.
+
+#### Stock historical performance
+
+In order to future understanding the price performance of the stock. We plot the historical prices versus time in the plot. We use 'XOM US Equity' and 'ADBE US Equity' as an example.
+
+```{r EDA, echo= FALSE}
+equity.name<-c("XOM US Equity","ADBE US Equity")
+date.start<-'2014-1-1'
+date.end<-'2018-12-1'
+
+Equity=dat[get(stocks.name) %in% equity.name & get(dates.name)>date.start& get(dates.name)<date.end ,]
+
+ggplot() + 
+  geom_line(data = Equity, aes(x=Dates, y = get(close.price.name),group=Stocks, colour = Stocks ))+theme(axis.text.x = element_text(angle = 90, hjust = 1))+scale_x_date(breaks=date_breaks("3 month"))
+
+```
+
+We could find that the price of ADBE equity is increasing through time through 2014 to 2017 while the price of XOM is relative stable. Because ADBE belongs to technology sector, technology is developing quickly these years. While XOM belongs to energy sector, the use of energy is relative stable over time which restricts the development of this company.
+We could find that the lowest price of these stock both occurs at around Feb. 2016 and Aug. 2018, this may cause by some macroeconomic factor.
+
+### Time Series Approach
+
+Stock in the sector that is developing quickly may have higher price volatility and future price growthment.
+
+**train and test data:** Then, we split the data to train and test with 40 month in the training data and 10 month in the test data in order to train the model. To better understand how will the number of past data affect the accuracy of the forecast and prediction, we also used 1 year, 6 month and 3 month for the training data besides the 40 month period. In order to increase the reproducibility of the model, we built a function and randomly picked one stock to check the performance of this model. 
+
+**Time Series:** The first model we picked in time series model. We picked this model because our goal is to predict future return on stocks based on historical return. Also, the nature and type of the data will be feasible to work with time series model since our data consist of date, daily stock price as well as return. Therefore, we decided to use the ARIMA model in forecast package to perform stock price forecast since it is one of the most widely used approaches to time-series forecasting with only date and price/return variable needed. The specific function we  used is auto.arima because we want to pick the best model based on AICc as the model with the minimum value of AIC is often best model. We have also set the stepwise  = FALSE and approximation = FALSE. By setting stepwise and approximation to False, we will ensure a more extensive search.
+
+About ARIMA (AutoRegressive Integrated Moving Average) model 
+
+1. Components of ARIMA model:
+
+ARIMA = AR + I + MA
+
+Autoregressive Models (AR) : Forecast a variable using a linear combination of past values of the variable 
+
+Differencing (I) : Differencing can help stabilize the mean of a time series by removing changes in the level of a time series, and so eliminating trend and seasonality.
+
+Moving Average (MA) : A moving average model uses past forecast errors in a regression-like model
+
+2. Interpretation of ARIMA model:
+
+Non-seasonal ARIMA
+
+ARIMA(p,d,q)
+
+p – order of autoregressive (AR) part
+
+d – degree of first differencing
+
+q – order of moving average (MA) part
+
+Seasonal ARIMA
+
+Non-Seasonal ARIMA + seasonal terms = Seasonal ARIMA
+
+ARIMA(p,d,q)(P,D,Q)m where(P,D,Q) is seasonal component and m is number of periods per season
+
+d = Number of lag differences
+
+p = Number of ordinary Autoregressive Lags
+
+q = Number of ordinary Moving average lags
+
+D = Number of seasonal differences
+
+P = Number of seasonal Autoregressive Lags
+
+Q = Number of seasonal Moving Average lags
+
+m = Seasonal period or number of observations per year
+
+#### ARIMA Model
+```{r arima_forecast_model}
+dat <- dat[,Dates := as.Date(get(dates.name))] 
+
+equity.variable<-dat[,unique(get(stocks.name))]
+stock.name.selected <- equity.variable[1]
+
+arima.model.info <- function(dt,stock.name,train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  library(ggplot2)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = test.nrow)
+  as.data.table(auto_arima_model_forecast)
+  
+  test[,forecast := as.numeric(auto_arima_model_forecast$mean)]
+  subdt_with_forecast <- merge(x = subdt,y = test,by = c(dates.name, return.name), all.x = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  accuracy(auto_arima_model_forecast, x = test[,get(return.name)])
+}
+
+arima.model.plot <- function(dt,stock.name,train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  library(ggplot2)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = test.nrow)
+  as.data.table(auto_arima_model_forecast)
+  
+  test[,forecast := as.numeric(auto_arima_model_forecast$mean)]
+  subdt_with_forecast <- merge(x = subdt,y = test,by = c(dates.name, return.name), all.x = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  subdt_with_forecast <- subdt_with_forecast[get(dates.name) >= as.Date(train.start.date)]
+  setnames(x = subdt_with_forecast, old = "value", new = "Return")
+  
+  ggplot(subdt_with_forecast, aes(x=Dates, y=Return, group=variable, color=variable)) + geom_line()
+}
+
+```
+
+
+### Support Vector Machine Approach
+
+#### Feature Selection:
+
+Our feature selection based on monthly return and monthly average financial ratio. We first calculated the monthly returns of 100 stocks based on our daily returns. Then we calculated the monthly average for each financial ratios and combined them with our monthly returns of 100 stocks and benchmarks. 
+We chose effective financial ratios based on three criteria: probability of success, p-value, and coefficients of linear regression. 
+
+1. **Probability of Success**: For each financial ratio, we set 100 stocks in descending order based on each financial ratio, like P/E. Then we divided them into five groups, each group contains 20 stocks. Then we calculated monthly return of each group for 50 months. The probability of success means that the number of months which the average monthly return of the first group of 50 months greater than the benchmark. 
+
+2. **Wilcoxon Rank Sum Test**: We did a Wilcoxon Rank Sum Test and got p-values for the monthly return of Group 1 and Group 5, since we want to know whether it has significant mean difference. 
+
+3. **Coefficients**: We fitted 17 financial ratios as variables and returns as response variables into a linear model to see the sign of the coefficient.
+
+### Calculate Monthly Return
+
+```{r warning=FALSE, include=FALSE}
+# Energy 
+stock.Energy <- data.frame("NA")
+t.Energy <- data.frame("NA")
+s.Energy <- data.frame("NA")
+c.Energy <- data.frame("NA")
+
+for(i in 0:19){
+  stock.Energy <- Energy[(1082*i+1):((i+1)*1082), ]
+  date.Energy <- stock.Energy$Dates
+  price.Energy <- stock.Energy$PX_OFFICIAL_CLOSE
+  t.Energy <- xts(price.Energy, date.Energy)
+  s.Energy <- monthlyReturn(t.Energy)
+  c.Energy <- merge(s.Energy, c.Energy)
+}
+
+energy.mon.re <- rbind(c.Energy$monthly.returns.1, c.Energy$monthly.returns.2, c.Energy$monthly.returns.3, c.Energy$monthly.returns.4, c.Energy$monthly.returns.5, c.Energy$monthly.returns.6,c.Energy$monthly.returns.7, c.Energy$monthly.returns.8, c.Energy$monthly.returns.9,c.Energy$monthly.returns.10, c.Energy$monthly.returns.11, c.Energy$monthly.returns.12,c.Energy$monthly.returns.13, c.Energy$monthly.returns.14, c.Energy$monthly.returns.15,c.Energy$monthly.returns.16, c.Energy$monthly.returns.17, c.Energy$monthly.returns.18, c.Energy$monthly.returns.19, c.Energy$monthly.returns)
+
+# Industry
+stock.Industry <- data.frame("NA")
+t.Industry <- data.frame("NA")
+s.Industry <- data.frame("NA")
+c.Industry <- data.frame("NA")
+for(i in 0:19){
+  stock.Industry <- Industry[(1082*i+1):((i+1)*1082), ]
+  date.Industry <- stock.Industry$Dates
+  price.Industry <- stock.Industry$PX_OFFICIAL_CLOSE
+  t.Industry <- xts(price.Industry, date.Industry)
+  s.Industry <- monthlyReturn(t.Industry)
+  c.Industry <- merge(s.Industry, c.Industry)
+}
+
+industry.mon.re <- rbind(c.Industry$monthly.returns.1, c.Industry$monthly.returns.2, c.Industry$monthly.returns.3, c.Industry$monthly.returns.4, c.Industry$monthly.returns.5, c.Industry$monthly.returns.6,c.Industry$monthly.returns.7, c.Industry$monthly.returns.8, c.Industry$monthly.returns.9,c.Industry$monthly.returns.10, c.Industry$monthly.returns.11, c.Industry$monthly.returns.12,c.Industry$monthly.returns.13, c.Industry$monthly.returns.14, c.Industry$monthly.returns.15,c.Industry$monthly.returns.16, c.Industry$monthly.returns.17, c.Industry$monthly.returns.18, c.Industry$monthly.returns.19, c.Industry$monthly.returns)
+
+# Financial Services
+stock.financial_services <- data.frame("NA")
+t.financial_services <- data.frame("NA")
+s.financial_services <- data.frame("NA")
+c.financial_services <- data.frame("NA")
+for(i in 0:19){
+  stock.financial_services <- Financial_Services[(1082*i+1):((i+1)*1082), ]
+  date.financial_services <- stock.financial_services$Dates
+  price.financial_services <- stock.financial_services$PX_OFFICIAL_CLOSE
+  t.financial_services <- xts(price.financial_services, date.financial_services)
+  s.financial_services <- monthlyReturn(t.financial_services)
+  c.financial_services <- merge(s.financial_services, c.financial_services)
+}
+fin.mon.re <- rbind(c.financial_services$monthly.returns.1, c.financial_services$monthly.returns.2, c.financial_services$monthly.returns.3, c.financial_services$monthly.returns.4, c.financial_services$monthly.returns.5, c.financial_services$monthly.returns.6,c.financial_services$monthly.returns.7, c.financial_services$monthly.returns.8, c.financial_services$monthly.returns.9,c.financial_services$monthly.returns.10, c.financial_services$monthly.returns.11, c.financial_services$monthly.returns.12,c.financial_services$monthly.returns.13, c.financial_services$monthly.returns.14, c.financial_services$monthly.returns.15,c.financial_services$monthly.returns.16, c.financial_services$monthly.returns.17, c.financial_services$monthly.returns.18, c.financial_services$monthly.returns.19, c.financial_services$monthly.returns)
+
+# Real Estate
+stock.real_estate <- data.frame("NA")
+t.real_estate <- data.frame("NA")
+s.real_estate <- data.frame("NA")
+c.real_estate <- data.frame("NA")
+for(i in 0:19){
+  stock.real_estate <- Real_Estate[(1082*i+1):((i+1)*1082), ]
+  date.real_estate <- stock.real_estate$Dates
+  price.real_estate <- stock.real_estate$PX_OFFICIAL_CLOSE
+  t.real_estate <- xts(price.real_estate, date.real_estate)
+  s.real_estate <- monthlyReturn(t.real_estate)
+  c.real_estate <- merge(s.real_estate, c.real_estate)
+}
+real.mon.re <- rbind(c.real_estate$monthly.returns.1, c.real_estate$monthly.returns.2, c.real_estate$monthly.returns.3, c.real_estate$monthly.returns.4, c.real_estate$monthly.returns.5, c.real_estate$monthly.returns.6,c.real_estate$monthly.returns.7, c.real_estate$monthly.returns.8, c.real_estate$monthly.returns.9,c.real_estate$monthly.returns.10, c.real_estate$monthly.returns.11, c.real_estate$monthly.returns.12,c.real_estate$monthly.returns.13, c.real_estate$monthly.returns.14, c.real_estate$monthly.returns.15,c.real_estate$monthly.returns.16, c.real_estate$monthly.returns.17, c.real_estate$monthly.returns.18, c.real_estate$monthly.returns.19, c.real_estate$monthly.returns)
+
+# Tech
+stock.tech <- data.frame("NA")
+t.tech <- data.frame("NA")
+s.tech <- data.frame("NA")
+c.tech <- data.frame("NA")
+for(i in 0:19){
+  stock.tech <- Tech[(1082*i+1):((i+1)*1082), ]
+  date.tech <- stock.tech$Dates
+  price.tech <- stock.tech$PX_OFFICIAL_CLOSE
+  t.tech <- xts(price.tech, date.tech)
+  s.tech <- monthlyReturn(t.tech)
+  c.tech <- merge(s.tech, c.tech)
+}
+tech.mon.re <- rbind(c.tech$monthly.returns.1, c.tech$monthly.returns.2, c.tech$monthly.returns.3, c.tech$monthly.returns.4, c.tech$monthly.returns.5, c.tech$monthly.returns.6,c.tech$monthly.returns.7, c.tech$monthly.returns.8, c.tech$monthly.returns.9,c.tech$monthly.returns.10, c.tech$monthly.returns.11, c.tech$monthly.returns.12,c.tech$monthly.returns.13, c.tech$monthly.returns.14, c.tech$monthly.returns.15,c.tech$monthly.returns.16, c.tech$monthly.returns.17, c.tech$monthly.returns.18, c.tech$monthly.returns.19, c.tech$monthly.returns)
+
+# Monthly Return for 100 stocks (every stocks contains 50 months)
+Combined.monthly.return <- rbind(energy.mon.re, fin.mon.re, industry.mon.re, real.mon.re, tech.mon.re)
+Combined.monthly.return$`Month` <- rep(1:50, 100)
+Combined.monthly.return <- Combined.monthly.return[,c(2,1)]
+colnames(Combined.monthly.return) <- c("Month", "Monthly Returns")
+```
+
+There is a summary of monthly return of every 100 stocks for 50 months.
+
+```{r}
+datatable(round(Combined.monthly.return, 4))
+```
+
+### Calculate Average of Each Factor
+
+```{r warning=FALSE,include=FALSE}
+# Change Data Type for Convenience
+dat$EBITDA_GROWTH <- as.numeric(as.character(dat$EBITDA_GROWTH))
+dat$EBITDA <- as.numeric(as.character(dat$EBITDA))
+dat$INVENT_TURN <-as.numeric(as.character(dat$INVENT_TURN))
+dat$RETURN_ON_INV_CAPITAL <-as.numeric(as.character(dat$RETURN_ON_INV_CAPITAL))
+
+# Calculate Average of Each Factors
+dat.monthly.average.factors <- dat[, lapply(.SD, mean, na.rm=TRUE), by = .(Sectors, Stocks, Month, Year), .SDcols = 6:22]
+
+# Combine Monthly Return and Monthy Factors
+dat.monthly.average.factors$`Monthly Return` <- Combined.monthly.return$`Monthly Returns`
+dat.full <- dat.monthly.average.factors
+```
+
+There is a summary of monthly average of each ratio of every 100 stocks for 50 months.
+
+```{r}
+datatable(dat.monthly.average.factors[1:num.lines, lapply(.SD, round.numerics, digits = 4)], rownames = FALSE)
+```
+
+### Benchmark Returns
+
+```{r include=FALSE}
+sp500<- read.csv("../Data/SP500monthly.csv")
+#saveRDS(sp500, file = "sp500.rds")
+sp500$Month <- months(as.Date(sp500$Date))
+sp500$Year <- year(sp500$Date)
+sp500$New_Month <- ifelse(sp500$Month == "January", 1, ifelse(sp500$Month == "February", 2, ifelse(sp500$Month == "March", 3, ifelse(sp500$Month == "April", 4, ifelse(sp500$Month == "May", 5, ifelse(sp500$Month == "June", 6, ifelse(sp500$Month == "July", 7, ifelse(sp500$Month == "August", 8, ifelse(sp500$Month == "September", 9, ifelse(sp500$Month == "November", 11, 12))))))))))
+sp500.clean <- sp500[, c(7,10,11)]
+sp500.clean <- sp500.clean[,c(2,3,1)]
+colnames(sp500.clean) <- c("Year", "Month", "Benchmark Monthly Return")
+sp500.clean <- round(sp500.clean, 4)
+```
+
+There is a summary of monthly return of S&P500.
+
+```{r}
+datatable(sp500.clean[1:num.lines,], rownames = FALSE)
+```
+
+
+### Select effective factors
+
+#### Step 1: Check Correlation 
+
+```{r include=FALSE}
+x <- cor(dat.full[,5:21],use = "pairwise.complete.obs")
+cor.list <- as.data.frame(as.table(x))
+cor.list <- cor.list[0.5 < cor.list$Freq,]
+cor.list <- cor.list[cor.list$Freq < 1,]
+```
+
+```{r}
+corrplot(x, type="upper", order="hclust",tl.col = "black", tl.cex = 0.7, cl.cex = 0.7, addCoef.col="grey", number.cex = 0.45)
+```
+
+
+#### Step 2: Calculate Probability of Success
+
+```{r include=FALSE}
+# Assign group name for 50 month for 1:100 stocks
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -PE_RATIO) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_pe = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -PX_TO_BOOK_RATIO) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_pb = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -PX_TO_SALES_RATIO) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_pS = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -PX_TO_FREE_CASH_FLOW) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_pfc = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -EQY_DPS) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_peqy = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -RETURN_COM_EQY) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_roe = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -RETURN_ON_ASSET) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_roa = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -SALES_GROWTH) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_SALES_GROWTH = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -EBITDA_GROWTH) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_EBITDA_GROWTH = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -EBITDA) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_EBITDA = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -PROF_MARGIN) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_PROF_MARGIN = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -TOT_DEBT_TO_TOT_ASSET) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_TOT_DEBT_TO_TOT_ASSET = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -ASSET_TURNOVER) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_ASSET_TURNOVER = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -NET_FIX_ASSET_TURN) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_NET_FIX_ASSET_TURN = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -INVENT_TURN) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_INVENT_TURN = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -RETURN_ON_INV_CAPITAL) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_RETURN_ON_INV_CAPITAL = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -TURNOVER) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_TURNOVER = row_number())
+
+dat.monthly.average.factors <- dat.monthly.average.factors %>%
+    arrange(Month, Year, -`Monthly Return`) %>%
+    group_by(Month, Year) %>%
+    mutate(rank_Monthly_Return = row_number())
+
+Rank <- dat.monthly.average.factors
+```
+
+```{r include=FALSE}
+cuts.groups <- c(1, 21, 41, 61, 81)
+```
+
+```{r warning=FALSE,include=FALSE}
+colnames(sp500.clean) <- c("Year", "New_Month", "Return")
+# PE
+pe.group.name <- "PE_RATIO Group"
+cut.pe <- as.data.table(Rank)[, eval(pe.group.name) := cut2(x = rank_pe,cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.pe <- cut.pe[, lapply(.SD, mean, na.rm=TRUE), by = .(`PE_RATIO Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.pe <- data.frame("NA")
+for (i in 0:49){
+  diff.pe[i+1] <- group.mean.pe[i+1, 4] - group.mean.pe[i+5, 4]
+}
+diff.pe <- t(diff.pe)
+
+# Extract Group 1 
+pe.group1 <- group.mean.pe[`PE_RATIO Group` == "[  1, 21)",]
+
+# Assign month by number
+pe.group1$New_Month <- ifelse(pe.group1$Month == "January", 1, ifelse(pe.group1$Month == "February", 2, ifelse(pe.group1$Month == "March", 3, ifelse(pe.group1$Month == "April", 4,ifelse(pe.group1$Month == "May", 5, ifelse(pe.group1$Month == "June", 6, ifelse(pe.group1$Month == "July", 7, ifelse(pe.group1$Month == "August", 8, ifelse(pe.group1$Month == "September", 9, ifelse(pe.group1$Month == "October", 10, ifelse(pe.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.pe <- merge(pe.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.pe <- length(which(as.numeric(compare.pe$`Monthly Return`) > compare.pe$Return) == TRUE)/length(compare.pe$Return)
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# PB
+PX_TO_BOOK_RATIO.group.name <- "PX_TO_BOOK_RATIO Group"
+cut.PX_TO_BOOK_RATIO <- as.data.table(Rank)[, eval(PX_TO_BOOK_RATIO.group.name) := cut2(x = Rank$rank_pb, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.PX_TO_BOOK_RATIO <- cut.PX_TO_BOOK_RATIO[, lapply(.SD, mean, na.rm=TRUE), by = .(`PX_TO_BOOK_RATIO Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.PX_TO_BOOK_RATIO <- data.frame("NA")
+for (i in 0:49){
+  diff.PX_TO_BOOK_RATIO[i+1] <- group.mean.PX_TO_BOOK_RATIO[i+1, 4] - group.mean.PX_TO_BOOK_RATIO[i+5, 4]
+}
+diff.PX_TO_BOOK_RATIO <- t(diff.PX_TO_BOOK_RATIO)
+
+# Extract Group 1 
+PX_TO_BOOK_RATIO.group1 <- group.mean.PX_TO_BOOK_RATIO[`PX_TO_BOOK_RATIO Group` == "[  1, 21)",]
+
+# Assign month by number
+PX_TO_BOOK_RATIO.group1$New_Month <- ifelse(PX_TO_BOOK_RATIO.group1$Month == "January", 1, ifelse(PX_TO_BOOK_RATIO.group1$Month == "February", 2, ifelse(PX_TO_BOOK_RATIO.group1$Month == "March", 3, ifelse(PX_TO_BOOK_RATIO.group1$Month == "April", 4,ifelse(PX_TO_BOOK_RATIO.group1$Month == "May", 5, ifelse(PX_TO_BOOK_RATIO.group1$Month == "June", 6, ifelse(PX_TO_BOOK_RATIO.group1$Month == "July", 7, ifelse(PX_TO_BOOK_RATIO.group1$Month == "August", 8, ifelse(PX_TO_BOOK_RATIO.group1$Month == "September", 9, ifelse(PX_TO_BOOK_RATIO.group1$Month == "October", 10, ifelse(PX_TO_BOOK_RATIO.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.PX_TO_BOOK_RATIO <- merge(PX_TO_BOOK_RATIO.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.PX_TO_BOOK_RATIO <- length(which(as.numeric(compare.PX_TO_BOOK_RATIO$`Monthly Return`) > compare.PX_TO_BOOK_RATIO$Return) == TRUE)/length(compare.PX_TO_BOOK_RATIO$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# PS
+PX_TO_SALES_RATIO.group.name <- "PX_TO_SALES_RATIO Group"
+cut.PX_TO_SALES_RATIO <- as.data.table(Rank)[, eval(PX_TO_SALES_RATIO.group.name) := cut2(x = Rank$rank_pS, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.PX_TO_SALES_RATIO <- cut.PX_TO_SALES_RATIO[, lapply(.SD, mean, na.rm=TRUE), by = .(`PX_TO_SALES_RATIO Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.PX_TO_SALES_RATIO <- data.frame("NA")
+for (i in 0:49){
+  diff.PX_TO_SALES_RATIO[i+1] <- group.mean.PX_TO_SALES_RATIO[i+1, 4] - group.mean.PX_TO_SALES_RATIO[i+5, 4]
+}
+diff.PX_TO_SALES_RATIO <- t(diff.PX_TO_SALES_RATIO)
+
+# Extract Group 1 
+PX_TO_SALES_RATIO.group1 <- group.mean.PX_TO_SALES_RATIO[`PX_TO_SALES_RATIO Group` == "[  1, 21)",]
+
+# Assign month by number
+PX_TO_SALES_RATIO.group1$New_Month <- ifelse(PX_TO_SALES_RATIO.group1$Month == "January", 1, ifelse(PX_TO_SALES_RATIO.group1$Month == "February", 2, ifelse(PX_TO_SALES_RATIO.group1$Month == "March", 3, ifelse(PX_TO_SALES_RATIO.group1$Month == "April", 4,ifelse(PX_TO_SALES_RATIO.group1$Month == "May", 5, ifelse(PX_TO_SALES_RATIO.group1$Month == "June", 6, ifelse(PX_TO_SALES_RATIO.group1$Month == "July", 7, ifelse(PX_TO_SALES_RATIO.group1$Month == "August", 8, ifelse(PX_TO_SALES_RATIO.group1$Month == "September", 9, ifelse(PX_TO_SALES_RATIO.group1$Month == "October", 10, ifelse(PX_TO_SALES_RATIO.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.PX_TO_SALES_RATIO <- merge(PX_TO_SALES_RATIO.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.PX_TO_SALES_RATIO <- length(which(as.numeric(compare.PX_TO_SALES_RATIO$`Monthly Return`) > compare.PX_TO_SALES_RATIO$Return) == TRUE)/length(compare.PX_TO_SALES_RATIO$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# pfc
+PX_TO_FREE_CASH_FLOW.group.name <- "PX_TO_FREE_CASH_FLOW Group"
+cut.PX_TO_FREE_CASH_FLOW <- as.data.table(Rank)[, eval(PX_TO_FREE_CASH_FLOW.group.name) := cut2(x = Rank$rank_pfc, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.PX_TO_FREE_CASH_FLOW <- cut.PX_TO_FREE_CASH_FLOW[, lapply(.SD, mean, na.rm=TRUE), by = .(`PX_TO_FREE_CASH_FLOW Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.PX_TO_FREE_CASH_FLOW <- data.frame("NA")
+for (i in 0:49){
+  diff.PX_TO_FREE_CASH_FLOW[i+1] <- group.mean.PX_TO_FREE_CASH_FLOW[i+1, 4] - group.mean.PX_TO_FREE_CASH_FLOW[i+5, 4]
+}
+diff.PX_TO_FREE_CASH_FLOW <- t(diff.PX_TO_FREE_CASH_FLOW)
+
+# Extract Group 1 
+PX_TO_FREE_CASH_FLOW.group1 <- group.mean.PX_TO_FREE_CASH_FLOW[`PX_TO_FREE_CASH_FLOW Group` == "[  1, 21)",]
+
+# Assign month by number
+PX_TO_FREE_CASH_FLOW.group1$New_Month <- ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "January", 1, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "February", 2, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "March", 3, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "April", 4,ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "May", 5, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "June", 6, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "July", 7, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "August", 8, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "September", 9, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "October", 10, ifelse(PX_TO_FREE_CASH_FLOW.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.PX_TO_FREE_CASH_FLOW <- merge(PX_TO_FREE_CASH_FLOW.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.PX_TO_FREE_CASH_FLOW <- length(which(as.numeric(compare.PX_TO_FREE_CASH_FLOW$`Monthly Return`) > compare.PX_TO_FREE_CASH_FLOW$Return) == TRUE)/length(compare.PX_TO_FREE_CASH_FLOW$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# EQY_DPS
+EQY_DPS.group.name <- "EQY_DPS Group"
+cut.EQY_DPS <- as.data.table(Rank)[, eval(EQY_DPS.group.name) := cut2(x = Rank$rank_peqy, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.EQY_DPS <- cut.EQY_DPS[, lapply(.SD, mean, na.rm=TRUE), by = .(`EQY_DPS Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.EQY_DPS <- data.frame("NA")
+for (i in 0:49){
+  diff.EQY_DPS[i+1] <- group.mean.EQY_DPS[i+1, 4] - group.mean.EQY_DPS[i+5, 4]
+}
+diff.EQY_DPS <- t(diff.EQY_DPS)
+
+# Extract Group 1 
+EQY_DPS.group1 <- group.mean.EQY_DPS[`EQY_DPS Group` == "[  1, 21)",]
+
+# Assign month by number
+EQY_DPS.group1$New_Month <- ifelse(EQY_DPS.group1$Month == "January", 1, ifelse(EQY_DPS.group1$Month == "February", 2, ifelse(EQY_DPS.group1$Month == "March", 3, ifelse(EQY_DPS.group1$Month == "April", 4,ifelse(EQY_DPS.group1$Month == "May", 5, ifelse(EQY_DPS.group1$Month == "June", 6, ifelse(EQY_DPS.group1$Month == "July", 7, ifelse(EQY_DPS.group1$Month == "August", 8, ifelse(EQY_DPS.group1$Month == "September", 9, ifelse(EQY_DPS.group1$Month == "October", 10, ifelse(EQY_DPS.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.EQY_DPS <- merge(EQY_DPS.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.EQY_DPS <- length(which(as.numeric(compare.EQY_DPS$`Monthly Return`) > compare.EQY_DPS$Return) == TRUE)/length(compare.EQY_DPS$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# RETURN_COM_EQY
+RETURN_COM_EQY.group.name <- "RETURN_COM_EQY Group"
+cut.RETURN_COM_EQY <- as.data.table(Rank)[, eval(RETURN_COM_EQY.group.name) := cut2(x = Rank$rank_roe, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.RETURN_COM_EQY <- cut.RETURN_COM_EQY[, lapply(.SD, mean, na.rm=TRUE), by = .(`RETURN_COM_EQY Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.RETURN_COM_EQY <- data.frame("NA")
+for (i in 0:49){
+  diff.RETURN_COM_EQY[i+1] <- group.mean.RETURN_COM_EQY[i+1, 4] - group.mean.RETURN_COM_EQY[i+5, 4]
+}
+diff.RETURN_COM_EQY <- t(diff.RETURN_COM_EQY)
+
+# Extract Group 1 
+RETURN_COM_EQY.group1 <- group.mean.RETURN_COM_EQY[`RETURN_COM_EQY Group` == "[  1, 21)",]
+
+# Assign month by number
+RETURN_COM_EQY.group1$New_Month <- ifelse(RETURN_COM_EQY.group1$Month == "January", 1, ifelse(RETURN_COM_EQY.group1$Month == "February", 2, ifelse(RETURN_COM_EQY.group1$Month == "March", 3, ifelse(RETURN_COM_EQY.group1$Month == "April", 4,ifelse(RETURN_COM_EQY.group1$Month == "May", 5, ifelse(RETURN_COM_EQY.group1$Month == "June", 6, ifelse(RETURN_COM_EQY.group1$Month == "July", 7, ifelse(RETURN_COM_EQY.group1$Month == "August", 8, ifelse(RETURN_COM_EQY.group1$Month == "September", 9, ifelse(RETURN_COM_EQY.group1$Month == "October", 10, ifelse(RETURN_COM_EQY.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.RETURN_COM_EQY <- merge(RETURN_COM_EQY.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.RETURN_COM_EQY <- length(which(as.numeric(compare.RETURN_COM_EQY$`Monthly Return`) > compare.RETURN_COM_EQY$Return) == TRUE)/length(compare.RETURN_COM_EQY$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# RETURN_ON_ASSET
+RETURN_ON_ASSET.group.name <- "RETURN_ON_ASSET Group"
+cut.RETURN_ON_ASSET <- as.data.table(Rank)[, eval(RETURN_ON_ASSET.group.name) := cut2(x = Rank$rank_roa, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.RETURN_ON_ASSET <- cut.RETURN_ON_ASSET[, lapply(.SD, mean, na.rm=TRUE), by = .(`RETURN_ON_ASSET Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.RETURN_ON_ASSET <- data.frame("NA")
+for (i in 0:49){
+  diff.RETURN_ON_ASSET[i+1] <- group.mean.RETURN_ON_ASSET[i+1, 4] - group.mean.RETURN_ON_ASSET[i+5, 4]
+}
+diff.RETURN_ON_ASSET <- t(diff.RETURN_ON_ASSET)
+
+# Extract Group 1 
+RETURN_ON_ASSET.group1 <- group.mean.RETURN_ON_ASSET[`RETURN_ON_ASSET Group` == "[  1, 21)",]
+
+# Assign month by number
+RETURN_ON_ASSET.group1$New_Month <- ifelse(RETURN_ON_ASSET.group1$Month == "January", 1, ifelse(RETURN_ON_ASSET.group1$Month == "February", 2, ifelse(RETURN_ON_ASSET.group1$Month == "March", 3, ifelse(RETURN_ON_ASSET.group1$Month == "April", 4,ifelse(RETURN_ON_ASSET.group1$Month == "May", 5, ifelse(RETURN_ON_ASSET.group1$Month == "June", 6, ifelse(RETURN_ON_ASSET.group1$Month == "July", 7, ifelse(RETURN_ON_ASSET.group1$Month == "August", 8, ifelse(RETURN_ON_ASSET.group1$Month == "September", 9, ifelse(RETURN_ON_ASSET.group1$Month == "October", 10, ifelse(RETURN_ON_ASSET.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.RETURN_ON_ASSET <- merge(RETURN_ON_ASSET.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.RETURN_ON_ASSET <- length(which(as.numeric(compare.RETURN_ON_ASSET$`Monthly Return`) > compare.RETURN_ON_ASSET$Return) == TRUE)/length(compare.RETURN_ON_ASSET$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# SALES_GROWTH
+SALES_GROWTH.group.name <- "SALES_GROWTH Group"
+cut.SALES_GROWTH <- as.data.table(Rank)[, eval(SALES_GROWTH.group.name) := cut2(x = Rank$rank_SALES_GROWTH, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.SALES_GROWTH <- cut.SALES_GROWTH[, lapply(.SD, mean, na.rm=TRUE), by = .(`SALES_GROWTH Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.SALES_GROWTH <- data.frame("NA")
+for (i in 0:49){
+  diff.SALES_GROWTH[i+1] <- group.mean.SALES_GROWTH[i+1, 4] - group.mean.SALES_GROWTH[i+5, 4]
+}
+diff.SALES_GROWTH <- t(diff.SALES_GROWTH)
+
+# Extract Group 1 
+SALES_GROWTH.group1 <- group.mean.SALES_GROWTH[`SALES_GROWTH Group` == "[  1, 21)",]
+
+# Assign month by number
+SALES_GROWTH.group1$New_Month <- ifelse(SALES_GROWTH.group1$Month == "January", 1, ifelse(SALES_GROWTH.group1$Month == "February", 2, ifelse(SALES_GROWTH.group1$Month == "March", 3, ifelse(SALES_GROWTH.group1$Month == "April", 4,ifelse(SALES_GROWTH.group1$Month == "May", 5, ifelse(SALES_GROWTH.group1$Month == "June", 6, ifelse(SALES_GROWTH.group1$Month == "July", 7, ifelse(SALES_GROWTH.group1$Month == "August", 8, ifelse(SALES_GROWTH.group1$Month == "September", 9, ifelse(SALES_GROWTH.group1$Month == "October", 10, ifelse(SALES_GROWTH.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.SALES_GROWTH <- merge(SALES_GROWTH.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.SALES_GROWTH <- length(which(as.numeric(compare.SALES_GROWTH$`Monthly Return`) > compare.SALES_GROWTH$Return) == TRUE)/length(compare.SALES_GROWTH$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# EBITDA_GROWTH
+EBITDA_GROWTH.group.name <- "EBITDA_GROWTH Group"
+cut.EBITDA_GROWTH <- as.data.table(Rank)[, eval(EBITDA_GROWTH.group.name) := cut2(x = Rank$rank_EBITDA_GROWTH, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.EBITDA_GROWTH <- cut.EBITDA_GROWTH[, lapply(.SD, mean, na.rm=TRUE), by = .(`EBITDA_GROWTH Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.EBITDA_GROWTH <- data.frame("NA")
+for (i in 0:49){
+  diff.EBITDA_GROWTH[i+1] <- group.mean.EBITDA_GROWTH[i+1, 4] - group.mean.EBITDA_GROWTH[i+5, 4]
+}
+diff.EBITDA_GROWTH <- t(diff.EBITDA_GROWTH)
+
+# Extract Group 1 
+EBITDA_GROWTH.group1 <- group.mean.EBITDA_GROWTH[`EBITDA_GROWTH Group` == "[  1, 21)",]
+
+# Assign month by number
+EBITDA_GROWTH.group1$New_Month <- ifelse(EBITDA_GROWTH.group1$Month == "January", 1, ifelse(EBITDA_GROWTH.group1$Month == "February", 2, ifelse(EBITDA_GROWTH.group1$Month == "March", 3, ifelse(EBITDA_GROWTH.group1$Month == "April", 4,ifelse(EBITDA_GROWTH.group1$Month == "May", 5, ifelse(EBITDA_GROWTH.group1$Month == "June", 6, ifelse(EBITDA_GROWTH.group1$Month == "July", 7, ifelse(EBITDA_GROWTH.group1$Month == "August", 8, ifelse(EBITDA_GROWTH.group1$Month == "September", 9, ifelse(EBITDA_GROWTH.group1$Month == "October", 10, ifelse(EBITDA_GROWTH.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.EBITDA_GROWTH <- merge(EBITDA_GROWTH.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.EBITDA_GROWTH <- length(which(as.numeric(compare.EBITDA_GROWTH$`Monthly Return`) > compare.EBITDA_GROWTH$Return) == TRUE)/length(compare.EBITDA_GROWTH$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# EBITDA
+EBITDA.group.name <- "EBITDA Group"
+cut.EBITDA <- as.data.table(Rank)[, eval(EBITDA.group.name) := cut2(x = Rank$rank_EBITDA, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.EBITDA <- cut.EBITDA[, lapply(.SD, mean, na.rm=TRUE), by = .(`EBITDA Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.EBITDA <- data.frame("NA")
+for (i in 0:49){
+  diff.EBITDA[i+1] <- group.mean.EBITDA[i+1, 4] - group.mean.EBITDA[i+5, 4]
+}
+diff.EBITDA <- t(diff.EBITDA)
+
+# Extract Group 1 
+EBITDA.group1 <- group.mean.EBITDA[`EBITDA Group` == "[  1, 21)",]
+
+# Assign month by number
+EBITDA.group1$New_Month <- ifelse(EBITDA.group1$Month == "January", 1, ifelse(EBITDA.group1$Month == "February", 2, ifelse(EBITDA.group1$Month == "March", 3, ifelse(EBITDA.group1$Month == "April", 4,ifelse(EBITDA.group1$Month == "May", 5, ifelse(EBITDA.group1$Month == "June", 6, ifelse(EBITDA.group1$Month == "July", 7, ifelse(EBITDA.group1$Month == "August", 8, ifelse(EBITDA.group1$Month == "September", 9, ifelse(EBITDA.group1$Month == "October", 10, ifelse(EBITDA.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.EBITDA <- merge(EBITDA.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.EBITDA <- length(which(as.numeric(compare.EBITDA$`Monthly Return`) > compare.EBITDA$Return) == TRUE)/length(compare.EBITDA$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# PROF_MARGIN
+PROF_MARGIN.group.name <- "PROF_MARGIN Group"
+cut.PROF_MARGIN <- as.data.table(Rank)[, eval(PROF_MARGIN.group.name) := cut2(x = Rank$rank_PROF_MARGIN, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.PROF_MARGIN <- cut.PROF_MARGIN[, lapply(.SD, mean, na.rm=TRUE), by = .(`PROF_MARGIN Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.PROF_MARGIN <- data.frame("NA")
+for (i in 0:49){
+  diff.PROF_MARGIN[i+1] <- group.mean.PROF_MARGIN[i+1, 4] - group.mean.PROF_MARGIN[i+5, 4]
+}
+diff.PROF_MARGIN <- t(diff.PROF_MARGIN)
+
+# Extract Group 1 
+PROF_MARGIN.group1 <- group.mean.PROF_MARGIN[`PROF_MARGIN Group` == "[  1, 21)",]
+
+# Assign month by number
+PROF_MARGIN.group1$New_Month <- ifelse(PROF_MARGIN.group1$Month == "January", 1, ifelse(PROF_MARGIN.group1$Month == "February", 2, ifelse(PROF_MARGIN.group1$Month == "March", 3, ifelse(PROF_MARGIN.group1$Month == "April", 4,ifelse(PROF_MARGIN.group1$Month == "May", 5, ifelse(PROF_MARGIN.group1$Month == "June", 6, ifelse(PROF_MARGIN.group1$Month == "July", 7, ifelse(PROF_MARGIN.group1$Month == "August", 8, ifelse(PROF_MARGIN.group1$Month == "September", 9, ifelse(PROF_MARGIN.group1$Month == "October", 10, ifelse(PROF_MARGIN.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.PROF_MARGIN <- merge(PROF_MARGIN.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.PROF_MARGIN <- length(which(as.numeric(compare.PROF_MARGIN$`Monthly Return`) > compare.PROF_MARGIN$Return) == TRUE)/length(compare.PROF_MARGIN$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# TOT_DEBT_TO_TOT_ASSET
+TOT_DEBT_TO_TOT_ASSET.group.name <- "TOT_DEBT_TO_TOT_ASSET Group"
+cut.TOT_DEBT_TO_TOT_ASSET <- as.data.table(Rank)[, eval(TOT_DEBT_TO_TOT_ASSET.group.name) := cut2(x = Rank$rank_TOT_DEBT_TO_TOT_ASSET, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.TOT_DEBT_TO_TOT_ASSET <- cut.TOT_DEBT_TO_TOT_ASSET[, lapply(.SD, mean, na.rm=TRUE), by = .(`TOT_DEBT_TO_TOT_ASSET Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.TOT_DEBT_TO_TOT_ASSET <- data.frame("NA")
+for (i in 0:49){
+  diff.TOT_DEBT_TO_TOT_ASSET[i+1] <- group.mean.TOT_DEBT_TO_TOT_ASSET[i+1, 4] - group.mean.TOT_DEBT_TO_TOT_ASSET[i+5, 4]
+}
+diff.TOT_DEBT_TO_TOT_ASSET <- t(diff.TOT_DEBT_TO_TOT_ASSET)
+
+# Extract Group 1 
+TOT_DEBT_TO_TOT_ASSET.group1 <- group.mean.TOT_DEBT_TO_TOT_ASSET[`TOT_DEBT_TO_TOT_ASSET Group` == "[  1, 21)",]
+
+# Assign month by number
+TOT_DEBT_TO_TOT_ASSET.group1$New_Month <- ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "January", 1, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "February", 2, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "March", 3, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "April", 4,ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "May", 5, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "June", 6, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "July", 7, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "August", 8, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "September", 9, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "October", 10, ifelse(TOT_DEBT_TO_TOT_ASSET.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.TOT_DEBT_TO_TOT_ASSET <- merge(TOT_DEBT_TO_TOT_ASSET.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.TOT_DEBT_TO_TOT_ASSET <- length(which(as.numeric(compare.TOT_DEBT_TO_TOT_ASSET$`Monthly Return`) > compare.TOT_DEBT_TO_TOT_ASSET$Return) == TRUE)/length(compare.TOT_DEBT_TO_TOT_ASSET$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# ASSET_TURNOVER
+ASSET_TURNOVER.group.name <- "ASSET_TURNOVER Group"
+cut.ASSET_TURNOVER <- as.data.table(Rank)[, eval(ASSET_TURNOVER.group.name) := cut2(x = Rank$rank_ASSET_TURNOVER, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.ASSET_TURNOVER <- cut.ASSET_TURNOVER[, lapply(.SD, mean, na.rm=TRUE), by = .(`ASSET_TURNOVER Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.ASSET_TURNOVER <- data.frame("NA")
+for (i in 0:49){
+  diff.ASSET_TURNOVER[i+1] <- group.mean.ASSET_TURNOVER[i+1, 4] - group.mean.ASSET_TURNOVER[i+5, 4]
+}
+diff.ASSET_TURNOVER <- t(diff.ASSET_TURNOVER)
+
+# Extract Group 1 
+ASSET_TURNOVER.group1 <- group.mean.ASSET_TURNOVER[`ASSET_TURNOVER Group` == "[  1, 21)",]
+
+# Assign month by number
+ASSET_TURNOVER.group1$New_Month <- ifelse(ASSET_TURNOVER.group1$Month == "January", 1, ifelse(ASSET_TURNOVER.group1$Month == "February", 2, ifelse(ASSET_TURNOVER.group1$Month == "March", 3, ifelse(ASSET_TURNOVER.group1$Month == "April", 4,ifelse(ASSET_TURNOVER.group1$Month == "May", 5, ifelse(ASSET_TURNOVER.group1$Month == "June", 6, ifelse(ASSET_TURNOVER.group1$Month == "July", 7, ifelse(ASSET_TURNOVER.group1$Month == "August", 8, ifelse(ASSET_TURNOVER.group1$Month == "September", 9, ifelse(ASSET_TURNOVER.group1$Month == "October", 10, ifelse(ASSET_TURNOVER.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.ASSET_TURNOVER <- merge(ASSET_TURNOVER.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.ASSET_TURNOVER <- length(which(as.numeric(compare.ASSET_TURNOVER$`Monthly Return`) > compare.ASSET_TURNOVER$Return) == TRUE)/length(compare.ASSET_TURNOVER$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# NET_FIX_ASSET_TURN
+NET_FIX_ASSET_TURN.group.name <- "NET_FIX_ASSET_TURN Group"
+cut.NET_FIX_ASSET_TURN <- as.data.table(Rank)[, eval(NET_FIX_ASSET_TURN.group.name) := cut2(x = Rank$rank_NET_FIX_ASSET_TURN, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.NET_FIX_ASSET_TURN <- cut.NET_FIX_ASSET_TURN[, lapply(.SD, mean, na.rm=TRUE), by = .(`NET_FIX_ASSET_TURN Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.NET_FIX_ASSET_TURN <- data.frame("NA")
+for (i in 0:49){
+  diff.NET_FIX_ASSET_TURN[i+1] <- group.mean.NET_FIX_ASSET_TURN[i+1, 4] - group.mean.NET_FIX_ASSET_TURN[i+5, 4]
+}
+diff.NET_FIX_ASSET_TURN <- t(diff.NET_FIX_ASSET_TURN)
+
+# Extract Group 1 
+NET_FIX_ASSET_TURN.group1 <- group.mean.NET_FIX_ASSET_TURN[`NET_FIX_ASSET_TURN Group` == "[  1, 21)",]
+
+# Assign month by number
+NET_FIX_ASSET_TURN.group1$New_Month <- ifelse(NET_FIX_ASSET_TURN.group1$Month == "January", 1, ifelse(NET_FIX_ASSET_TURN.group1$Month == "February", 2, ifelse(NET_FIX_ASSET_TURN.group1$Month == "March", 3, ifelse(NET_FIX_ASSET_TURN.group1$Month == "April", 4,ifelse(NET_FIX_ASSET_TURN.group1$Month == "May", 5, ifelse(NET_FIX_ASSET_TURN.group1$Month == "June", 6, ifelse(NET_FIX_ASSET_TURN.group1$Month == "July", 7, ifelse(NET_FIX_ASSET_TURN.group1$Month == "August", 8, ifelse(NET_FIX_ASSET_TURN.group1$Month == "September", 9, ifelse(NET_FIX_ASSET_TURN.group1$Month == "October", 10, ifelse(NET_FIX_ASSET_TURN.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.NET_FIX_ASSET_TURN <- merge(NET_FIX_ASSET_TURN.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.NET_FIX_ASSET_TURN <- length(which(as.numeric(compare.NET_FIX_ASSET_TURN$`Monthly Return`) > compare.NET_FIX_ASSET_TURN$Return) == TRUE)/length(compare.NET_FIX_ASSET_TURN$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# INVENT_TURN
+INVENT_TURN.group.name <- "INVENT_TURN Group"
+cut.INVENT_TURN <- as.data.table(Rank)[, eval(INVENT_TURN.group.name) := cut2(x = Rank$rank_INVENT_TURN, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.INVENT_TURN <- cut.INVENT_TURN[, lapply(.SD, mean, na.rm=TRUE), by = .(`INVENT_TURN Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.INVENT_TURN <- data.frame("NA")
+for (i in 0:49){
+  diff.INVENT_TURN[i+1] <- group.mean.INVENT_TURN[i+1, 4] - group.mean.INVENT_TURN[i+5, 4]
+}
+diff.INVENT_TURN <- t(diff.INVENT_TURN)
+
+# Extract Group 1 
+INVENT_TURN.group1 <- group.mean.INVENT_TURN[`INVENT_TURN Group` == "[  1, 21)",]
+
+# Assign month by number
+INVENT_TURN.group1$New_Month <- ifelse(INVENT_TURN.group1$Month == "January", 1, ifelse(INVENT_TURN.group1$Month == "February", 2, ifelse(INVENT_TURN.group1$Month == "March", 3, ifelse(INVENT_TURN.group1$Month == "April", 4,ifelse(INVENT_TURN.group1$Month == "May", 5, ifelse(INVENT_TURN.group1$Month == "June", 6, ifelse(INVENT_TURN.group1$Month == "July", 7, ifelse(INVENT_TURN.group1$Month == "August", 8, ifelse(INVENT_TURN.group1$Month == "September", 9, ifelse(INVENT_TURN.group1$Month == "October", 10, ifelse(INVENT_TURN.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.INVENT_TURN <- merge(INVENT_TURN.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.INVENT_TURN <- length(which(as.numeric(compare.INVENT_TURN$`Monthly Return`) > compare.INVENT_TURN$Return) == TRUE)/length(compare.INVENT_TURN$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# RETURN_ON_INV_CAPITAL
+RETURN_ON_INV_CAPITAL.group.name <- "RETURN_ON_INV_CAPITAL Group"
+cut.RETURN_ON_INV_CAPITAL <- as.data.table(Rank)[, eval(RETURN_ON_INV_CAPITAL.group.name) := cut2(x = Rank$rank_RETURN_ON_INV_CAPITAL, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.RETURN_ON_INV_CAPITAL <- cut.RETURN_ON_INV_CAPITAL[, lapply(.SD, mean, na.rm=TRUE), by = .(`RETURN_ON_INV_CAPITAL Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.RETURN_ON_INV_CAPITAL <- data.frame("NA")
+for (i in 0:49){
+  diff.RETURN_ON_INV_CAPITAL[i+1] <- group.mean.RETURN_ON_INV_CAPITAL[i+1, 4] - group.mean.RETURN_ON_INV_CAPITAL[i+5, 4]
+}
+diff.RETURN_ON_INV_CAPITAL <- t(diff.RETURN_ON_INV_CAPITAL)
+
+# Extract Group 1 
+RETURN_ON_INV_CAPITAL.group1 <- group.mean.RETURN_ON_INV_CAPITAL[`RETURN_ON_INV_CAPITAL Group` == "[  1, 21)",]
+
+# Assign month by number
+RETURN_ON_INV_CAPITAL.group1$New_Month <- ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "January", 1, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "February", 2, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "March", 3, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "April", 4,ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "May", 5, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "June", 6, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "July", 7, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "August", 8, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "September", 9, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "October", 10, ifelse(RETURN_ON_INV_CAPITAL.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.RETURN_ON_INV_CAPITAL <- merge(RETURN_ON_INV_CAPITAL.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.RETURN_ON_INV_CAPITAL <- length(which(as.numeric(compare.RETURN_ON_INV_CAPITAL$`Monthly Return`) > compare.RETURN_ON_INV_CAPITAL$Return) == TRUE)/length(compare.RETURN_ON_INV_CAPITAL$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# TURNOVER
+TURNOVER.group.name <- "TURNOVER Group"
+cut.TURNOVER <- as.data.table(Rank)[, eval(TURNOVER.group.name) := cut2(x = Rank$rank_TURNOVER, cuts = cuts.groups)]
+
+# Caculate group mean for 50 months
+group.mean.TURNOVER <- cut.TURNOVER[, lapply(.SD, mean, na.rm=TRUE), by = .(`TURNOVER Group`, Year, Month), .SDcols = "Monthly Return"]
+
+# Calculate difference of monthly return between group 1 and group 5
+diff.TURNOVER <- data.frame("NA")
+for (i in 0:49){
+  diff.TURNOVER[i+1] <- group.mean.TURNOVER[i+1, 4] - group.mean.TURNOVER[i+5, 4]
+}
+diff.TURNOVER <- t(diff.TURNOVER)
+
+# Extract Group 1 
+TURNOVER.group1 <- group.mean.TURNOVER[`TURNOVER Group` == "[  1, 21)",]
+
+# Assign month by number
+TURNOVER.group1$New_Month <- ifelse(TURNOVER.group1$Month == "January", 1, ifelse(TURNOVER.group1$Month == "February", 2, ifelse(TURNOVER.group1$Month == "March", 3, ifelse(TURNOVER.group1$Month == "April", 4,ifelse(TURNOVER.group1$Month == "May", 5, ifelse(TURNOVER.group1$Month == "June", 6, ifelse(TURNOVER.group1$Month == "July", 7, ifelse(TURNOVER.group1$Month == "August", 8, ifelse(TURNOVER.group1$Month == "September", 9, ifelse(TURNOVER.group1$Month == "October", 10, ifelse(TURNOVER.group1$Month == "November", 11, 12)))))))))))
+
+# Probability of Group 1 better than sp500
+compare.TURNOVER <- merge(TURNOVER.group1 , sp500.clean, by = c("Year","New_Month"))
+prob.suc.TURNOVER <- length(which(as.numeric(compare.TURNOVER$`Monthly Return`) > compare.TURNOVER$Return) == TRUE)/length(compare.TURNOVER$Return) 
+```
+
+
+```{r warning=FALSE,include=FALSE}
+# Difference between group 1 to group 5 (50 month)
+com.factor <- cbind(diff.pe, diff.PX_TO_BOOK_RATIO, diff.PX_TO_SALES_RATIO, diff.PX_TO_FREE_CASH_FLOW, diff.EQY_DPS, diff.RETURN_COM_EQY, diff.RETURN_ON_ASSET, diff.SALES_GROWTH, diff.EBITDA_GROWTH, diff.EBITDA, diff.PROF_MARGIN, diff.TOT_DEBT_TO_TOT_ASSET, diff.ASSET_TURNOVER, diff.NET_FIX_ASSET_TURN, diff.INVENT_TURN, diff.RETURN_ON_INV_CAPITAL, diff.TURNOVER)
+com.factor <-data.frame(com.factor)
+colnames(com.factor) <- names(dat.monthly.average.factors)[5:21]
+
+# Prob of Success total (17 factors)
+prob.suc <- rbind(prob.suc.pe, prob.suc.PX_TO_BOOK_RATIO, prob.suc.PX_TO_SALES_RATIO, prob.suc.PX_TO_FREE_CASH_FLOW, prob.suc.EQY_DPS, prob.suc.RETURN_COM_EQY, prob.suc.RETURN_ON_ASSET, prob.suc.SALES_GROWTH, prob.suc.EBITDA_GROWTH, prob.suc.EBITDA, prob.suc.PROF_MARGIN, prob.suc.TOT_DEBT_TO_TOT_ASSET, prob.suc.ASSET_TURNOVER, prob.suc.NET_FIX_ASSET_TURN, prob.suc.INVENT_TURN, prob.suc.RETURN_ON_INV_CAPITAL, prob.suc.TURNOVER)
+rownames(prob.suc) <- names(dat.monthly.average.factors)[5:21]
+prob.suc <- data.frame(prob.suc)
+prob.suc$`Success` <- ifelse(prob.suc$prob.suc > 0.50, "Yes", "No")
+colnames(prob.suc) <- c("Probability of Success", "Success")
+```
+
+There is a summary of probability of success.
+
+```{r}
+datatable(prob.suc[1:num.lines,], rownames = FALSE)
+```
+
+
+#### Step 3: Wilcoxon Rank Sum Test for Mean difference between group 1 to group 5
+
+```{r include=FALSE}
+#dat.full <- readRDS("Monthly Average Full.rds")
+# P/E
+pe <- dat.full[order(-dat.full$PE_RATIO),]
+pe$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+pe.group1 <- pe[pe$Group=="Group 1", 5]
+pe.group5 <- pe[pe$Group=="Group 5", 5]
+w.test.pe <- wilcox.test(pe.group1$PE_RATIO, pe.group5$PE_RATIO)
+
+# P/B
+pb <- dat.full[order(-dat.full$PX_TO_BOOK_RATIO),]
+pb$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+pb.group1 <- pb[pb$Group=="Group 1", 6]
+pb.group5 <- pb[pb$Group=="Group 5", 6]
+w.test.pb <- wilcox.test(pb.group1$PX_TO_BOOK_RATIO, pb.group5$PX_TO_BOOK_RATIO)
+
+# P/S
+ps <- dat.full[order(-dat.full$PX_TO_SALES_RATIO),]
+ps$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+ps.group1 <- ps[ps$Group=="Group 1", 7]
+ps.group5 <- ps[ps$Group=="Group 5", 7]
+w.test.ps <- wilcox.test(ps.group1$PX_TO_SALES_RATIO, ps.group5$PX_TO_SALES_RATIO)
+
+# P/CF
+pfc <- dat.full[order(-dat.full$PX_TO_FREE_CASH_FLOW),]
+pfc$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+pfc.group1 <- pfc[pfc$Group=="Group 1", 8]
+pfc.group5 <- pfc[pfc$Group=="Group 5", 8]
+w.test.pfc <- wilcox.test(pfc.group1$PX_TO_FREE_CASH_FLOW, ps.group5$PX_TO_SALES_RATIO)
+
+# EQY_DPS
+peqy <- dat.full[order(-dat.full$EQY_DPS),]
+peqy$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+peqy.group1 <- peqy[peqy$Group=="Group 1", 9]
+peqy.group5 <- peqy[peqy$Group=="Group 5", 9]
+w.test.pepy <- wilcox.test(peqy.group1$EQY_DPS, peqy.group5$EQY_DPS)
+
+# RETURN_COM_EQY
+roe <- dat.full[order(-dat.full$RETURN_COM_EQY),]
+roe$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+roe.group1 <- roe[roe$Group=="Group 1", 10]
+roe.group5 <- roe[roe$Group=="Group 5", 10]
+w.test.roe <- wilcox.test(roe.group1$RETURN_COM_EQY, roe.group5$RETURN_COM_EQY)
+
+# RETURN_ON_ASSET
+roa <- dat.full[order(-dat.full$RETURN_ON_ASSET),]
+roa$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+roa.group1 <- roa[roa$Group=="Group 1", 11]
+roa.group5 <- roa[roa$Group=="Group 5", 11]
+w.test.roa <- wilcox.test(roa.group1$RETURN_ON_ASSET, roa.group5$RETURN_ON_ASSET)
+
+# SALES_GROWTH
+sales.gr <- dat.full[order(-dat.full$SALES_GROWTH),]
+sales.gr$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+sales.gr.group1 <- sales.gr[sales.gr$Group=="Group 1", 12]
+sales.gr.group5 <- sales.gr[sales.gr$Group=="Group 5", 12]
+w.test.sales.gr <- wilcox.test(sales.gr.group1$SALES_GROWTH, sales.gr.group5$SALES_GROWTH)
+
+# EBITDA_GROWTH
+ebitda.growth <- dat.full[order(-dat.full$EBITDA_GROWTH),]
+ebitda.growth$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+ebitda.growth.group1 <- ebitda.growth[ebitda.growth$Group=="Group 1", 13]
+ebitda.growth.group5 <- ebitda.growth[ebitda.growth$Group=="Group 5", 13]
+w.test.ebitda.growth <- wilcox.test(ebitda.growth.group1$EBITDA_GROWTH, ebitda.growth.group5$EBITDA_GROWTH)
+
+# EBITDA
+ebitda <- dat.full[order(-dat.full$EBITDA),]
+ebitda$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+ebitda.group1 <- ebitda[ebitda$Group=="Group 1", 14]
+ebitda.group5 <- ebitda[ebitda$Group=="Group 5", 14]
+diff.ebitda.all <- ebitda.group1$EBITDA-ebitda.group5$EBITDA
+w.test.ebitda <- wilcox.test(ebitda.group1$EBITDA, ebitda.group5$EBITDA)
+
+
+# PROF_MARGIN
+PROF_MARGIN <- dat.full[order(-dat.full$PROF_MARGIN),]
+PROF_MARGIN$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+PROF_MARGIN.group1 <- PROF_MARGIN[Group=="Group 1", 15]
+PROF_MARGIN.group5 <- PROF_MARGIN[Group=="Group 5", 15]
+w.test.PROF_MARGIN <- wilcox.test(PROF_MARGIN.group1$PROF_MARGIN, PROF_MARGIN.group5$PROF_MARGIN)
+
+# TOT_DEBT_TO_TOT_ASSET
+dtoa <- dat.full[order(-dat.full$TOT_DEBT_TO_TOT_ASSET),]
+dtoa$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+dtoa.group1 <- dtoa[dtoa$Group=="Group 1", 16]
+dtoa.group5 <- dtoa[dtoa$Group=="Group 5", 16]
+w.test.dtoa <- wilcox.test(dtoa.group1$TOT_DEBT_TO_TOT_ASSET, dtoa.group5$TOT_DEBT_TO_TOT_ASSET)
+
+# ASSET_TURNOVER
+ASSET_TURNOVER <- dat.full[order(-dat.full$ASSET_TURNOVER),]
+ASSET_TURNOVER$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+ASSET_TURNOVER.group1 <- ASSET_TURNOVER[Group=="Group 1", 17]
+ASSET_TURNOVER.group5 <- ASSET_TURNOVER[Group=="Group 5", 17]
+w.test.ASSET_TURNOVER <- wilcox.test(ASSET_TURNOVER.group1$ASSET_TURNOVER, ASSET_TURNOVER.group5$ASSET_TURNOVER)
+
+# NET_FIX_ASSET_TURN
+NET_FIX_ASSET_TURN <- dat.full[order(-dat.full$NET_FIX_ASSET_TURN),]
+NET_FIX_ASSET_TURN$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+NET_FIX_ASSET_TURN.group1 <- NET_FIX_ASSET_TURN[Group=="Group 1", 18]
+NET_FIX_ASSET_TURN.group5 <- NET_FIX_ASSET_TURN[Group=="Group 5", 18]
+w.test.NET_FIX_ASSET_TURN <- wilcox.test(NET_FIX_ASSET_TURN.group1$NET_FIX_ASSET_TURN, NET_FIX_ASSET_TURN.group5$NET_FIX_ASSET_TURN)
+
+# INVENT_TURN
+INVENT_TURN <- dat.full[order(-dat.full$INVENT_TURN),]
+INVENT_TURN$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+INVENT_TURN.group1 <- INVENT_TURN[Group=="Group 1", 19]
+INVENT_TURN.group3<- INVENT_TURN[Group=="Group 3", 19]
+w.test.INVENT_TURN <- wilcox.test(INVENT_TURN.group1$INVENT_TURN, INVENT_TURN.group3$INVENT_TURN)
+
+# RETURN_ON_INV_CAPITAL
+RETURN_ON_INV_CAPITAL <- dat.full[order(-dat.full$RETURN_ON_INV_CAPITAL),]
+RETURN_ON_INV_CAPITAL$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+RETURN_ON_INV_CAPITAL.group1 <- RETURN_ON_INV_CAPITAL[Group=="Group 1", 20]
+RETURN_ON_INV_CAPITAL.group5 <- RETURN_ON_INV_CAPITAL[Group=="Group 5", 20]
+w.test.RETURN_ON_INV_CAPITAL <- wilcox.test(RETURN_ON_INV_CAPITAL.group1$RETURN_ON_INV_CAPITAL, RETURN_ON_INV_CAPITAL.group5$RETURN_ON_INV_CAPITAL)
+
+# TURNOVER
+turnover <- dat.full[order(-dat.full$TURNOVER),]
+turnover$Group <- c(rep("Group 1", 1000), rep("Group 2", 1000), rep("Group 3", 1000), rep("Group 4", 1000), rep("Group 5", 1000))
+turnover.group1 <- turnover[turnover$Group=="Group 1", 21]
+turnover.group5 <- turnover[turnover$Group=="Group 5", 21]
+w.test.turnover <- wilcox.test(turnover.group1$TURNOVER, turnover.group5$TURNOVER)
+w.test.turnover[3]
+```
+
+
+```{r include=FALSE}
+p.value <- rbind(w.test.pe[3], w.test.pb[3], w.test.ps[3], w.test.pfc[3], w.test.pepy[3], w.test.roe[3],  w.test.roa[3], w.test.sales.gr[3], w.test.ebitda.growth[3], w.test.ebitda[3], w.test.PROF_MARGIN[3],  w.test.dtoa[3], w.test.ASSET_TURNOVER[3], w.test.NET_FIX_ASSET_TURN[3], w.test.INVENT_TURN[3],  w.test.RETURN_ON_INV_CAPITAL[3], w.test.turnover[3])
+p.value <- unlist(p.value)
+p.value <- as.data.frame(p.value)
+rownames(p.value) <- colnames(dat[,6:22])
+```
+
+There is a summary of wilcoxon rank sum test.
+
+```{r}
+datatable(p.value , rownames = TRUE)
+```
+
+
+#### Step 4: Calculate Coefficients of Linear Regression
+
+```{r include=FALSE}
+# Calculate Coefficients of Linear Regression
+rank1 <- Rank[, 23:40]
+model <- lm(rank_Monthly_Return~., data = rank1)
+coeff <-lm(rank_Monthly_Return~., data = rank1)$coefficients[-1]
+coeff <- as.data.table(coeff)
+coeff$`Financial Ratios` <- colnames(dat.daily[,6:22])
+coeff <- coeff[,c(2,1)]
+colnames(coeff) <- c("Financial Ratios", "Coefficients")
+
+# Combine all
+sum.factor <- cbind(prob.suc, p.value, coeff)
+colnames(sum.factor) <- c("Probability of Success", "Success", "P-Values", "Financial Ratios", "Coefficients")
+# Assign 
+sum.factor$`Significant` <- ifelse(sum.factor$`P-Values` < 0.01, "Yes", "No")
+sum.factor$`Linear` <- ifelse(sum.factor$Coefficients < 0, "Negative", "Positive")
+```
+
+There is a summary of coefficients of linear model.
+
+```{r}
+datatable(coeff[,lapply(.SD, round.numerics, digits = 6)], rownames = FALSE)
+```
+
+#### Step 5: Summary of Three Feature Selection Criteria
+
+There is a summary of three feature selection criteria. 
+
+```{r}
+sum.factor <- as.data.table(sum.factor)
+sum.factor <- sum.factor[,c(4, 1, 2, 3, 6, 5, 7)]
+datatable(sum.factor[,lapply(.SD, round.numerics, digits = 6)], rownames = FALSE)
+```
+
+```{r include=FALSE}
+# Satisfy two of three criteria
+# Condition 1 
+sum.factor$Factor <- colnames(dat.full[,5:21])
+f1 <- sum.factor[sum.factor$Success == "Yes" & sum.factor$Significant == "Yes", ]
+f2 <- sum.factor[sum.factor$Success == "Yes" & sum.factor$Linear == "Positive",]
+f3 <- sum.factor[sum.factor$Significant == "Yes" & sum.factor$Linear == "Positive",]
+all <- rbind(f1, f2, f3)
+factor.sig.all <- unique(all$Factor)
+# Condition 2 (All positive + one Yes)
+partial <- rbind(f2, f3)
+factor.sig.partial <- unique(partial$Factor)
+
+# Satisfy all three criteria
+f4 <- sum.factor[sum.factor$Success == "Yes" & sum.factor$Significant == "Yes" & sum.factor$Linear == "Positive",]
+factor.sig.three <- unique(f4$Factor)
+
+factor.sig.all <- as.data.table(factor.sig.all)
+colnames(factor.sig.all) <- "Factors Satisfies Two of Three Criteria" 
+factor.sig.partial <- as.data.table(factor.sig.partial)
+colnames(factor.sig.partial) <- "Factors Satisfies Two of Three Criteria (Positive Coefficient)" 
+factor.sig.three <- as.data.table(factor.sig.three)
+colnames(factor.sig.three) <- "Factors Satisfies All Three Criteria"
+```
+
+Finally, we decided to use three groups of factors. 
+
+1. **Group 1**: Satisfies two of the three selecting criteria which contains total 14 financial ratios:
+"PE_RATIO", "PX_TO_BOOK_RATIO", "PX_TO_FREE_CASH_FLOW", "EQY_DPS", "RETURN_COM_EQY", "SALES_GROWTH", "EBITDA_GROWTH", "EBITDA", "RETURN_ON_INV_CAPITAL", "TURNOVER",  "PROF_MARGIN", "ASSET_TURNOVER",  "NET_FIX_ASSET_TURN", "INVENT_TURN"  
+
+2. **Group 2**: Satisfies two of the three selecting criteria but the sign of the coefficient must be positive (contains total 8 financial ratios):
+"PE_RATIO", "RETURN_COM_EQY", "EBITDA_GROWTH", "EBITDA", "PROF_MARGIN", "ASSET_TURNOVER", "NET_FIX_ASSET_TURN",
+"INVENT_TURN"
+
+3. **Group 3**: Satisfies all three criteria (contains total 4 financial ratios):
+"PE_RATIO", "RETURN_COM_EQY", "EBITDA_GROWTH", "EBITDA" 
+
+**Group 1:**
+
+```{r}
+datatable(factor.sig.all, rownames = FALSE)
+```
+
+**Group 2:**
+
+```{r}
+datatable(factor.sig.partial, rownames = FALSE)
+```
+
+**Group 3:**
+
+```{r}
+datatable(factor.sig.three, rownames = FALSE)
+```
+
+
+### Support Vector Machine Approach
+
+#### Model:
+
+We also used Support Vector Machine Method to build our model not only because we wanted to compare the results of time series with machine learning model, but also because it is widely used in fundamental financial analysis and often behaves well. We subset our data into training and testing dataset in order to check the Support Vector Machine model result. Also, we tried three combination of variable dataset produced by different criteria, so from the result we can also test whether the factor selection method is meaningful. During the model building, we used the impute method to deal with the missing data since Support Vector Machine itself cannot handle missing data. The imputed data distribution from graphs are almost the same as that before imputing.
+
+About Support Vector Machine model: it is a supervised learning model with associated learning algorithms that analyze data used for classification or regression analysis. 
+
+Also, before we build Support Vector Machine model, we used the imputing method to replace our missing data which could hinder our model building. In this progress, we applied the function impute() in package “e1071” of RStudio, and we took the imputing rule as “RandomForest”. 
+
+1. Advantages of Support Vector Machine model:
+Finding the optimal solutions based on finite information(data)
+Able to find the global optimal solutions by solving optimization problem.
+Solving high-dimension nonlinear problems through nonlinear transformation to high dimensional linear problems.
+
+2. Kernel Trick:   
+a) Replace the scalar product function with kernel function in the Support Vector Machine formula. 
+b) By using a nonlinear function instead, we can make the classifier nonlinear.
+
+
+### Support Vector Machine Model after filtering on the 14-variable dataset
+```{r include=FALSE}
+# Filtered dataset with 14 factors
+dat <- as.data.frame(dat)
+variable.name.14 <- c("Dates", "Sectors", "Stocks", "PX_OFFICIAL_CLOSE", "Return", "Month", "Year", "PE_RATIO", "PX_TO_BOOK_RATIO", "PX_TO_FREE_CASH_FLOW", "EQY_DPS", "RETURN_COM_EQY", "SALES_GROWTH", "EBITDA_GROWTH", "EBITDA", "RETURN_ON_INV_CAPITAL", "TURNOVER", "ASSET_TURNOVER", "NET_FIX_ASSET_TURN", "INVENT_TURN", "PROF_MARGIN")
+dat.14 <- dat[names(dat) %in% variable.name.14]
+#names(dat.14)
+variable.name.8 = c("Dates", "Sectors", "Stocks", "PX_OFFICIAL_CLOSE", "Return", "Month", "Year", "PE_RATIO", "RETURN_COM_EQY", "EBITDA_GROWTH", "EBITDA", "PROF_MARGIN", "ASSET_TURNOVER", "NET_FIX_ASSET_TURN", "INVENT_TURN")
+dat.8 <- dat[names(dat) %in% variable.name.8]
+variable.name.4 = c("Dates", "Sectors", "Stocks", "PX_OFFICIAL_CLOSE", "Return", "Month", "Year", "PE_RATIO", "RETURN_COM_EQY", "EBITDA_GROWTH", "EBITDA")
+dat.4 <- dat[names(dat) %in% variable.name.4]
+dat.4$EBITDA<- as.numeric(dat.4$EBITDA)
+
+### Support Vector Machine model after filtering factors
+dat.4$Month <- as.factor(dat.4$Month)
+dat.4$Sectors <- as.factor(dat.4$Sectors)
+dat.4$Stocks <- as.factor(dat.4$Stocks)
+#colnames(dat.4)[12] <- "Daily_Return"
+
+#Impute
+#imp.14 <- mice(dat.14, m = 1, method = "rf", maxit = 3)
+#imputed.14 <- complete(imp.14)
+#saveRDS(imputed.14, file = "Imputed.14.rds")
+imputed.14 <- readRDS("../Data/Imputed.14.rds")
+#imp.8 <- mice(dat.8, m = 1, method = "rf", maxit = 3)
+#imputed.8 <- complete(imputed.8)
+#saveRDS(imputed.8, file = "Imputed.8.rds")
+imputed.8 <- readRDS("../Data/Imputed.8.rds")
+#imputed.8 <- complete(imputed.8)
+#imp.4 <- mice(dat.4, m = 1, method = "rf", maxit = 3)
+#imputed.4 <- complete(imp.4)
+#saveRDS(imputed.4, file = "Imputed.4.rds")
+imputed.4 <- readRDS("../Data/Imputed.4.rds")
+
+sector.name <- "Sectors"
+stocks.name <- "Stocks"
+stocks.clean.name <- "Stocks_Clean"
+return.name <- "Return"
+dates.name <- "Dates"
+year.name <- "Year"
+close.price.name <- "PX_OFFICIAL_CLOSE"
+
+num.lines <- 20
+
+train.start.date.fourty.month <- "2014-11-07"
+train.start.date.one.year <- "2017-03-01"
+train.start.date.half.year <- "2017-09-01"
+train.start.date.three.month <- "2017-12-01"
+test.start.date <- "2018-03-01"
+
+test.nrow <- 218
+
+dat <- as.data.frame(imputed.14)
+
+#dat <- readRDS("../Imputed.4.rds")
+dat <- as.data.table(imputed.14)
+dat <- dat[,Dates := as.Date(get(dates.name))]
+
+dat[, Stocks_Clean := gsub(x = get(stocks.name), pattern = " US Equity", replacement = "")]
+unique.stock.groups <- dat[, unique(get(stocks.clean.name))]
+stock.name.selected <- unique.stock.groups[5]
+
+svm.model.info <- function(dt, stock.name, train.start.date, cost){
+  require(data.table)
+  dt <- setDT(dt)
+  subdt <- dt[get(stocks.clean.name) == stock.name, .SD, .SDcols = 1:21]
+  subdt$Month <- as.factor(subdt$Month)
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  train$EBITDA_GROWTH <- as.numeric(train$EBITDA_GROWTH)
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  test$EBITDA_GROWTH <- as.numeric(test$EBITDA_GROWTH)
+  svm_model <- svm(Return~., data = train[, -c(1:3)], kernel = "radial", cost = cost)
+  svm_predict <- predict(svm_model, test[, -c(1:3)])
+  as.data.table(svm_predict)
+  plot(svm_predict, type = "l", col = 2)
+  lines(test$Return, col = 3)
+  accuracy(svm_predict, x = test[,get(return.name)])
+} 
+
+
+svm.model.fourty.month <- svm.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.fourty.month, cost = 8)
+accu.14 <- svm.model.fourty.month
+```
+
+```{r}
+accu.14
+```
+
+
+### Support Vector Machine Model after filtering on the 8-variable dataset
+```{r include=FALSE}
+dat <- readRDS("../Data/Imputed.4.rds")
+dat <- as.data.table(imputed.8)
+dat <- dat[,Dates := as.Date(get(dates.name))]
+
+dat[, Stocks_Clean := gsub(x = get(stocks.name), pattern = " US Equity", replacement = "")]
+unique.stock.groups <- dat[, unique(get(stocks.clean.name))]
+stock.name.selected <- unique.stock.groups[5]
+
+svm.model.info <- function(dt, stock.name, train.start.date, cost){
+  require(data.table)
+  dt <- setDT(dt)
+  subdt <- dt[get(stocks.clean.name) == stock.name, .SD, .SDcols = 1:15]
+  subdt$Month <- as.factor(subdt$Month)
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  train$EBITDA_GROWTH <- as.numeric(train$EBITDA_GROWTH)
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  test$EBITDA_GROWTH <- as.numeric(test$EBITDA_GROWTH)
+  svm_model <- svm(Return~., data = train[, -c(1:3)], kernel = "radial", cost = cost)
+  svm_predict <- predict(svm_model, test[, -c(1:3)])
+  as.data.table(svm_predict)
+  plot(svm_predict, type = "l", col = 2)
+  lines(test$Return, col = 3)
+  accuracy(svm_predict, x = test[,get(return.name)])
+} 
+
+
+svm.model.fourty.month <- svm.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.fourty.month, cost = 8)
+accu.8 <- svm.model.fourty.month
+```
+
+```{r}
+accu.8
+```
+
+
+### Support Vector Machine Model after filtering on the 4-variable dataset
+```{r include=FALSE}
+dat <- readRDS("../Data/Imputed.4.rds")
+dat <- as.data.table(imputed.4)
+dat <- dat[,Dates := as.Date(get(dates.name))]
+
+dat[, Stocks_Clean := gsub(x = get(stocks.name), pattern = " US Equity", replacement = "")]
+unique.stock.groups <- dat[, unique(get(stocks.clean.name))]
+stock.name.selected <- unique.stock.groups[5]
+
+svm.model.info <- function(dt, stock.name, train.start.date, cost){
+  require(data.table)
+  dt <- setDT(dt)
+  subdt <- dt[get(stocks.clean.name) == stock.name, .SD, .SDcols = 1:11]
+  subdt$Month <- as.factor(subdt$Month)
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  train$EBITDA_GROWTH <- as.numeric(train$EBITDA_GROWTH)
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  test$EBITDA_GROWTH <- as.numeric(test$EBITDA_GROWTH)
+  svm_model <- svm(Return~., data = train[, -c(1:3)], kernel = "radial", cost = cost)
+  svm_predict <- predict(svm_model, test[, -c(1:3)])
+  as.data.table(svm_predict)
+  plot(svm_predict, type = "l", col = 2)
+  lines(test$Return, col = 3)
+  accuracy(svm_predict, x = test[,get(return.name)])
+} 
+ check_constant <- function(dt){
+    which(apply(dt, 2, function(x) length(unique(x))) != 1)
+  }
+  svm.model.plot <- function(dt, stock.name, train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  subdt <- dt[get(stocks.name) == stock.name, ]
+  subdt$Month <- as.factor(subdt$Month)
+  train <- subdt[as.Date(get(dates.name)) >= as.Date(train.start.date) & as.Date(get(dates.name)) < as.Date(test.start.date), ]
+  non_constant <- check_constant(train)
+  non_constant <- as.vector(non_constant[-1])
+  test <- subdt[as.Date(get(dates.name)) >= as.Date(test.start.date), ]
+  svm_model <- svm(Return~., data = train[, ..non_constant], kernal = "sigmoid", cost = 8)
+  svm_predict <- predict(svm_model, test[, ..non_constant])
+  
+
+  test$Pred <- svm_predict
+  test_result <- test[, c(1, 5, 22)]
+  test_data_long <- melt(test_result, id="Dates")
+  
+  ggplot(data=test_data_long,
+       aes(x=Dates, y=value, colour=variable)) +
+       geom_line()
+  }
+  
+
+svm.model.fourty.month <- svm.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.fourty.month, cost = 8)
+accu.4 <- svm.model.fourty.month
+```
+
+```{r}
+accu.4
+```
+
+After we examined the accuracy RMSE of these three groups of variables, the 14-variable dataset showed best RMSE result, which tested our feature selection process. So in the following work, we chose to use this 14-variable datase to train our Support Vector Machine model. 
+
+
+## The Results:
+**Time Series:** In order to examine the performance of the forecast model, we checked the accuracy for both training and testing dataset and plot the forecast model to better visualize the forecast.. We found that the forecast amount stay almost the same in the future period even though the confidence level changes. The RMSE for both training and test dataset are about 0.01. 
+
+```{r arima_forecast_model_2, include=FALSE}
+dat <- dat[,Dates := as.Date(get(dates.name))] 
+
+equity.variable<-dat[,unique(get(stocks.name))]
+stock.name.selected <- equity.variable[1]
+
+arima.model.info <- function(dt,stock.name,train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  library(ggplot2)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = test.nrow)
+  as.data.table(auto_arima_model_forecast)
+  
+  test[,forecast := as.numeric(auto_arima_model_forecast$mean)]
+  subdt_with_forecast <- merge(x = subdt,y = test,by = c(dates.name, return.name), all.x = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  accuracy(auto_arima_model_forecast, x = test[,get(return.name)])
+}
+
+arima.model.plot <- function(dt,stock.name,train.start.date){
+  require(data.table)
+  dt <- setDT(dt)
+  library(ggplot2)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date) & get(dates.name) < as.Date(test.start.date),]
+  test <- subdt[get(dates.name) >= as.Date(test.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = test.nrow)
+  as.data.table(auto_arima_model_forecast)
+  
+  test[,forecast := as.numeric(auto_arima_model_forecast$mean)]
+  subdt_with_forecast <- merge(x = subdt,y = test,by = c(dates.name, return.name), all.x = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  subdt_with_forecast <- subdt_with_forecast[get(dates.name) >= as.Date(train.start.date)]
+  setnames(x = subdt_with_forecast, old = "value", new = "Return")
+  
+  ggplot(subdt_with_forecast, aes(x=Dates, y=Return, group=variable, color=variable)) + geom_line()
+}
+
+```
+
+
+```{r arima_forecast_forty_month_train}
+arima.model.info.fourty.month <- arima.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.fourty.month)
+arima.model.info.fourty.month
+
+arima.model.plot.fourty.month <- arima.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.fourty.month)
+arima.model.plot.fourty.month
+```
+
+
+```{r arima_forecast_one_year_train}
+arima.model.info.one.year <- arima.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.one.year)
+arima.model.info.one.year
+
+arima.model.plot.one.year <- arima.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.one.year)
+arima.model.plot.one.year
+```
+
+```{r arima_forecast_half_year_train}
+arima.model.info.half.year <- arima.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.half.year)
+arima.model.info.half.year
+
+arima.model.plot.half.year <- arima.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.half.year)
+arima.model.plot.half.year
+
+```
+
+```{r arima_forecast_three_month_train}
+arima.model.info.three.month <- arima.model.info(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.three.month)
+arima.model.info.three.month
+
+arima.model.plot.three.month <- arima.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.three.month)
+arima.model.plot.three.month
+```
+
+We also examined how changing the number of past data in the training data might affect the forecast accuracy and displayed the result of RMSE below. We found that the RMSE for training data with half year or one year are relatively lower compared to 40 month or 3 month. 
+
+```{r arima_forecast_RMSE}
+RMSE <- list("training_forty_month","training_one_year","training_half_year","training_three_month","test_forty_month","test_one_year","test_half_year","test_three_month")
+rate <- list(arima.model.info.fourty.month[1,2], arima.model.info.one.year[1,2],arima.model.info.half.year[1,2],arima.model.info.three.month[1,2],arima.model.info.fourty.month[2,2], arima.model.info.one.year[2,2],arima.model.info.half.year[2,2],arima.model.info.three.month[2,2])
+res <- data.table(RMSE, rate)
+datatable(res)
+```
+
+
+**Future Foreacast:** we also buit a model to enable the felxibility of how far in the future we want to forecast, below is an exmaple for using all past data to predict future window of 30 days
+
+
+```{r arima_forecast_future}
+equity.variable<-dat[,unique(get(stocks.name))]
+stock.name.selected <- equity.variable[1]
+train.start.date.selected <- train.start.date.all.month.new
+future.window.selected <- future.window.variables[1]
+
+arima.model.plot.future <- function(dt,stock.name,train.start.date, future.window){
+  require(data.table)
+  dt <- setDT(dt)
+  library(ggplot2)
+  subdt <- dt[get(stocks.name) == stock.name, .SD, .SDcols = c(dates.name,return.name)]
+  train <- subdt[get(dates.name) >= as.Date(train.start.date),]
+  auto_arima_model <-  auto.arima(y = train[, get(return.name)],stepwise = FALSE, approximation = FALSE)
+  auto_arima_model_forecast <- forecast(auto_arima_model, h = future.max)
+  as.data.table(auto_arima_model_forecast)
+  
+  forecast <- as.list(as.numeric(auto_arima_model_forecast$mean))
+  Dates <- as.list(weekdays_2019)
+  future <- data.table(Dates,forecast)
+  future <- future[, Dates:= as.Date(unlist(future[, get(dates.name)]))]
+  future <- future[, forecast:= as.numeric(unlist(future[, get("forecast")]))][1:future.window]
+  subdt_with_forecast <- merge(x = train,y = future,by = dates.name, all.x = TRUE, all.y = TRUE)
+  subdt_with_forecast <- melt(subdt_with_forecast, id.vars="Dates", measure.vars=c("Return", "forecast"))
+  setnames(x = subdt_with_forecast, old = "value", new = "Return")
+  
+  ggplot(subdt_with_forecast, aes(x=Dates, y=Return, group=variable, color=variable)) + geom_line()
+}
+
+arima.model.plot.future <- arima.model.plot.future(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.selected, future.window = future.window.selected)
+arima.model.plot.future
+
+```
+
+
+**Support Vector Machine:** 
+
+We used Support Vector Machine Method to build our model because it is widely used in fundamental financial analysis and often behaves well. We subset our data into training and testing dataset in order to check the Support Vector Machine model result. Also, we tried three combination of variable dataset produced by different criteria, so from the result we can also test whether the factor selection method is meaningful. During the model building, we used the impute method to deal with the missing data since Support Vector Machine itself cannot handle missing data. The imputed data distribution from graphs are almost the same as that before imputing.
+
+
+### Display the accuracy results of three variable selected dataset.
+```{r}
+acc <- rbind(accu.14, accu.8, accu.4)
+datatable(acc, rownames = (c("accuracy 14v", "accuracy 8v", "accuracy 4v")))
+```
+We can find that by Support Vector Machine method, the more variable we select, the more accuracy we get. It means that machine learning model usually predict results based on the existing data, so obtaining more information is meaningful for machine learning model in our dataset. 
+
+
+
+**Support Vector Machine model:** From the result table in three different feature selection results, we can see that the 4-variable prediction RMSE is 0.01629, 8-variable dataset RMSE 0.01725, and the 14-variable dataset prediction RMSE is 0.01579. What is interesting that for Support Vector Machine model, it is not true when more variable we select, the more accuracy we get. It means that machine learning model usually predict results based on the existing data, so selecting appropriate significant variables is meaningful for machine learning model in our dataset. In our following part, we used the 14-variable dataset to build and train our Support Vector Machine model.
+
+Before building the model, we check the imputing result by plot the original stock price and the dataset after dealing with missing data. From the Rplot we can say that the missing data was imputed almost well.
+
+**Conclusion:** Compared to Time Series model, the Support Vector Machine overall results of the same training and test dataset performs slightly better. Because the Support Vector Machine plot can show the trend of historical stock price(see graphs showed below)
+
+Therefore, it is our modified method to predict the stock returns by historical factor data. 
+
+```{r svm_forecast_forty_month_train}
+dat <- imputed.14
+svm.model.plot.fourty.month <- svm.model.plot(dt = imputed.14, stock.name = stock.name.selected, train.start.date = train.start.date.fourty.month)
+svm.model.plot.fourty.month
+```
+
+
+```{r svm_forecast_one_year_train}
+svm.model.plot.one.year <- svm.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.one.year)
+svm.model.plot.one.year
+```
+
+```{r svm_forecast_half_year_train}
+svm.model.plot.half.year <- svm.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.half.year)
+svm.model.plot.half.year
+
+```
+
+```{r svm_forecast_three_month_train}
+svm.model.plot.three.month <- svm.model.plot(dt = dat, stock.name = stock.name.selected, train.start.date = train.start.date.three.month)
+svm.model.plot.three.month
+```
+
+
+```{r stock price of analysis_2}
+dat <- dat.daily
+dat <- dat[,Dates := as.Date(get(dates.name))] 
+equity.name<-c("XOM US Equity","ADBE US Equity")
+date.start<-'2014-1-1'
+date.end<-'2018-12-1'
+
+Equity=dat[get(stocks.name) %in% equity.name & get(dates.name)>date.start& get(dates.name)<date.end ,]
+
+
+measure.stock <- Equity[,.('Mean'=mean(get(close.price.name),na.rm=TRUE),'SD'=sd(get(close.price.name),na.rm=TRUE),'Var'=nth(x=get(close.price.name),n=floor(0.05 * .N))),keyby=c(stocks.name,sector.name)]
+
+
+temp=merge(measure.stock,Equity,by=stocks.name)
+
+measure.stock$ES<-temp[get(close.price.name)< `Var`,mean(get(close.price.name),na.rm=TRUE),keyby=stocks.name] $V1
+rm(temp)
+
+datatable(measure.stock)
+
+
+ggplot() + 
+  geom_line(data = Equity, aes(x=Dates, y = get(close.price.name),group=Stocks, colour = Stocks ))+theme(axis.text.x = element_text(angle = 90, hjust = 1))+scale_x_date(breaks=date_breaks("3 month"))
+
+
+```
+
+## Interpretation: 
+**Time Series:** It turned out that the forecast amount stay the same in all future period without reflecting any trend regardless of the fluctuation of the stocks in the past.  It also seems that the confidence intervals are changing even if the mean value stays the same, most times 0.  It might imply that the ARIMA model is forecasting the average of the values for all future points.  Also, given the return itself has a range of [0.001,0.01] and the RMSE is about 0.01, the error rate is very high. The RMSE for training data with one year or half year is little better but still as high as 200%. Therefore, this forecast model seems to have limited utility. 
+
+**Support Vector Machine:** Using machine learning model in predicting financial results is a new method in stock quantitative analysis. It could handle large amount of stock factors data and examine the predicted return plot with the historical data. From our result, we can roughly find the trend of stock return according to the actual fluctuation of the stocks in the past. Since the historical data has highly fluctuated, we can simply see that the Support Vector Machine result is also the predict of averaging our datasets by influential numerical factors. It has slightly meaningful when we make decisions on buying stocks since the overall trend of the stock return follows the actual return performance. 
+However, although the RMSE is a little bit better than time series model, the predict error rate is still around 100% which is also a limited model if it is going to be used in actual business.
+
+**Application and Dashboard:**
+Given the poor prediction accuracy we obtained, we do not think it will that useful in the market. Perhaps in the real world the stock price is so unpredictable in nature or maybe we do not have enough historical data to train and the models and skills we currently have are so limited. Even though we don’t think our models are sufficient when it comes to making real investor decisions, we still want to give the flexibility to the potential users/investors  to choose how far away they want to use the past data to forecast and how further in the future they want to know the estimated return.
+
+In order to better summarize our findings and enable customized selection, we have built a reporting engine by using R shiny. Once the stock name is chosen as an input, the details of the data will be shown, including industry sectors, standard deviations etc. Also, users will not only be able to choose the model (Support Vector Machine or ARIMA), but also be able to choose the length of past data (whole 40 month, 6 month or 3 month) and how far in the future to look at the forecast/prediction.
+
+## Assumptions: 
+
+**Stock Analysis:** We make assumption that stocks with high factor ratio would be a better stock. Besides, stocks with high risk will stay risky in the future.
+
+**Time Series:** The assumptions we made for time-series-model: 
+
+1. Consecutive observations are equally spaced.
+
+2. Apply a discrete-time index (even though this may only hold approximately). E.g.,daily stock returns are only available for weekdays, not weekends and holidays.
+
+3. We picked 40 month for the train data and 10 month for the test data. 
+
+We think our assumptions are reasonable because our data source was from a trustworthy financial service, Bloomberg, which ensures the accuracy and completeness of the date and price. Also, the length of time period we picked, 50 month in total, is a manageable length of period to work with. 
+
+**Support Vector Machine:** The assumptions we made for support vector machine model: 
+
+1. Numerical and factor variables only.
+
+2. No missing data(impute missing data by random Forest method) in our model variables.
+
+3. We picked 40 month for the train data and 10 month for the test data.
+
+
+## Limitations and Uncertainties: 
+
+In our project, we assume that the historical performance may repeat or partially reflect the future performance of the stock. However, this may not true in the real world. Even the stock with lowest standard deviation like stocks in energy sector will fluctuate a lot due to new government policy.
+
+In addition, the time series approach has the higher error rate. It does not reflect trend shown from the forecast data suggest that the model might be limited utility and our results may not be useful in forecasting future returns in the real world. Also, the results from auto.arima is not very satisfactory, maybe we can improve in the future by tuning parameters for better model performance. 
+
+Moreover, in the feature selection of the support vector machine model, financial ratios which have high correlations are supposed to be remove. Since we only have three high correlation pairs and after we tried to include and exclude the factors with high correlation, the results do not have significant difference. Therefore, in this project, we choose to keep all financial ratios even though some of thems have high correlation. However, if we want to use other approaches to do the prediction, including the high correlation factors might cause some problems. 
+
+For the support vector machine model itself, as we all known, the supervised machine learning method can only predict based on the historical financial ratios of the stocks. It is not allowed to predict return in the future since we do not have future financial ratios. So the support vector machine model can only predict whether the price of the stocks can goes up or down but not the return of the stocks which might be limited in helping people make decision in the future.
+
+Consider correlation between financial ratios
+```{r include=FALSE}
+x <- cor(dat.full[,5:21],use = "pairwise.complete.obs")
+cor.list <- as.data.frame(as.table(x))
+cor.list <- cor.list[0.5 < cor.list$Freq,]
+cor.list <- cor.list[cor.list$Freq < 1,]
+
+dat_impute <- imputed.14
+dat_impute <- as.data.table(dat_impute)
+dat_impute <- dat_impute[,Dates := as.Date(get(dates.name))]
+dat_impute[, Stocks_Clean := gsub(x = get(stocks.name), pattern = " US Equity", replacement = "")]
+unique.stock.groups <- dat_impute[, unique(get(stocks.clean.name))]
+stock.name.selected <- unique.stock.groups[1]
+
+svm.model.info <- function(dt, stocks.clean.name1, train.start.date){
+    require(data.table)
+    dt <- setDT(dt)
+    subdt <- dt[get(stocks.clean.name) == stocks.clean.name1, ]
+    subdt$Month <- as.factor(subdt$Month)
+    train <- subdt[as.Date(get(dates.name)) >= as.Date(train.start.date) & as.Date(get(dates.name)) < as.Date(test.start.date), ]
+    non_constant <- check_constant(train)
+    non_constant <- as.vector(non_constant[-1])
+    test <- subdt[as.Date(get(dates.name)) >= as.Date(test.start.date), ]
+    svm_model <- svm(Return~., data = train[, ..non_constant], kernal = "sigmoid", cost = 8)
+    svm_predict <- predict(svm_model, test[, ..non_constant])      
+    accu <- accuracy(svm_predict, x = test[,get(return.name)])
+    res <- list("ME" = accu[1], "RMSE" = accu[2])
+    # res <- setDT(res)
+    # rownames(res) <- stocks.clean.name
+    # datatable(res)
+}
+
+# Correlation Test
+drop.turnover <- svm.model.info(dt = dat_impute[, -c(19)], stocks.clean.name1 = stock.name.selected, train.start.date = train.start.date.fourty.month)[2]
+drop.return_on_inv_capital <- svm.model.info(dt = dat_impute[, -c(18)], stocks.clean.name1 = stock.name.selected, train.start.date = train.start.date.fourty.month)[2]
+drop.inv_turn <- svm.model.info(dt = dat_impute[, -c(17)], stocks.clean.name1 = stock.name.selected, train.start.date = train.start.date.fourty.month)[2]
+test.full <- list("RMSE" = accu.14[[2]])
+res <- rbind(test.full, drop.turnover, drop.return_on_inv_capital, drop.inv_turn)
+```
+
+```{r}
+datatable(res)
+```
+
+
+## Areas of Future Investigation: 
+
+Because of the limitations and uncertainties we discussed above, there are some interesting future investigation areas.
+
+First, by using the r shiny or other related techniques, we can build a recommendation system. For instance, within given risk measure range, we could recommend stock with highest return to the users. Within give return range, we could recommend stock with lowest risk to the users.
+
+Second, we used time series approach to do the forecast of the stock. Even though the overall performance of the model is not satisfactory, we did notice a pattern of slightly better performance from training data of one year or half year, compared to 40 month or 3 month. Perhaps that length of time is more appropriate to begin with when conducting forecast. Therefore, maybe we can investigate whether it is true by looking at more samples and comparing with different length of past period? If it is true, how can we further improve the accuracy of the forecast?
+
+Finally, for the support vector machine model we already built, we can explore that whether more sectors of stock data will give us better prediction error results. We now chose five sectors among eleven sectors of all the stocks, it might satisfy us when more sectors are included in the model because the Support Vector Machine method behaves better with larger input dataset.
+
+## References:
+[1]Value at risk. (2019, March 30). Retrieved April 28, 2019, from https://en.wikipedia.org/wiki/Value_at_risk
+
+[2]Expected Shortfall - Glossary | StatPro. (2013, June 27). Retrieved April 28, 2019, from https://www.statpro.com/glossary/expected-shortfall-or-conditional-var-or-c-var/
+
+[3]Sharper Insight. Smarter Investing. (n.d.). Retrieved April 29, 2019, from https://www.investopedia.com/
+
+[4]S&P 500 Index. (2019, April 15). Retrieved April 29, 2019, from https://en.wikipedia.org/wiki/S&P_500_Index
+
+[5]T. Hastie, R. Tibshirani and J. Friedman. The Elements of Statistical Learning. Second Edition, Springer, 2009
+
+[6]G. James, D. Witten, T. Hastie and R. Tibshirani. An Introduction to Statistical Learning with Applications in R. Springer, 2013
+
+[7]K. P. Murphy. Machine Learning: a Probabilistic Perspective. MIT Press, 2012
+
+[8]J. Shawe-Taylor and N. Cristianini. An Introduction to Support Vector Machines and Other Kernel-
+Based Learning Methods. Cambridge University Press, 2000
+
+[9]D. Barber. Bayesian Reasoning and Machine Learning. Cambridge University Press, 2012
+
+
