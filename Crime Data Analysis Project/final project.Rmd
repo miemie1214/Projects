@@ -1,0 +1,144 @@
+---
+title: "5291 final"
+author: "Yiyang Fu yf2473"
+date: "5/5/2019"
+output:
+  html_document: default
+  word_document: default
+---
+
+
+### 1. Summary
+
+
+
+### 2. Introduction
+EDA
+```{r}
+library(data.table)
+library(corrplot)
+data <- read.table("../Project/CRIMEDATA.txt", sep="", header=FALSE)
+UNI <- 2473
+set.seed(UNI)
+index <-sample(c(1:440))
+mydata<-data[index[1:250],]
+mydata <- as.data.table(mydata)
+
+
+data.name <- c("Identification_Number","County_Name","State","Land_area","Total_population","P18_34","P65","active_physicians","hospital_beds","serious_crimes","P_highschool_graduate","P_bechelor's","P_lowpoverty","P_unemployment","capita_income","total_personal_income","Geographic_region")
+colnames(mydata)<- data.name
+
+#mydata.scale <- mydata[, lapply(.SD, scale, center = FALSE), .SDcols = data.name[-c(1,2,3,17)]]
+
+#mydata$Geographic_region <- as.factor(mydata$Geographic_region)
+mydata$Land_area <- mydata$Total_population/mydata$Land_area
+mydata$active_physicians <- (mydata$active_physicians/mydata$Total_population)*100
+mydata$hospital_beds <- (mydata$hospital_beds/mydata$Total_population)*100
+mydata$crimerate <- (mydata$serious_crimes/mydata$Total_population)*100
+mydata[, Total_population := NULL]
+mydata[, total_personal_income := NULL]
+mydata[, serious_crimes := NULL]
+
+par(mfrow=c(3,4),mar=rep(2,4),oma=c(0,0,2,0))
+#boxplot(mydata$crimerate, mydata$P18_34, mydata$P65, mydata$active_physicians, mydata$hospital_beds, mydata$P_highschool_graduate, mydata$`P_bechelor's`, mydata$P_lowpoverty, mydata$P_unemployment, mydata$Geographic_region)
+boxplot(mydata$crimerate)
+boxplot(mydata$P18_34)
+boxplot(mydata$P65)
+boxplot(mydata$active_physicians)
+boxplot(mydata$hospital_beds)
+boxplot(mydata$P_highschool_graduate)
+boxplot(mydata$`P_bechelor's`)
+boxplot(mydata$P_lowpoverty)
+boxplot(mydata$P_unemployment)
+boxplot(mydata$capita_income)
+boxplot(mydata$Geographic_region)
+
+```
+
+Check mean and standard deviation of data:
+```{r}
+mydata[, lapply(.SD, mean, na.rm=TRUE), .SDcols = data.name[-c(1,2,3,5,10,16)]]
+mydata[, lapply(.SD, sd, na.rm=TRUE), .SDcols = data.name[-c(1,2,3,5,10,16)]]
+```
+
+Clean data: 
+
+We added crime rate variable which is calculated by serious crimes number divided by total population. And we also added population rate calculated by total population divided by land area.
+
+
+
+### 3. Results
+Build model: Linear Regression
+```{r}
+model <- lm(crimerate~., data = mydata[, -c(1,2,3)])
+summary(model)
+```
+
+Confidence Interval
+```{r}
+confint(model)
+```
+
+Residual Analysis
+```{r}
+par(mfrow = c(2,2))
+plot(model)
+
+#remove the 162 pot
+mydata <- mydata[-162, ]
+model <- lm(crimerate~., data = mydata[, -c(1,2,3)])
+summary(model)
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(model)
+```
+
+
+
+
+Check correlation
+```{r}
+x <- cor(mydata[, -c(1,2,3,14)],use = "pairwise.complete.obs")
+cor.list <- as.data.frame(as.table(x))
+cor.list <- cor.list[0.5 < cor.list$Freq,]
+cor.list <- cor.list[cor.list$Freq < 1,]
+
+corrplot(x, type="upper", order="hclust",tl.col = "black", tl.cex = 0.7, cl.cex = 0.7, addCoef.col="grey", number.cex = 0.45)
+
+```
+From the correlation plot, we can see that several variables are highly correlated. 
+
+
+Improve model: simply select significant variables from original linear regression model
+```{r}
+model.lm <- lm(crimerate~Land_area+hospital_beds+P_highschool_graduate+P_lowpoverty+Geographic_region, data = mydata)
+summary(model.lm)
+```
+
+
+Stepwise: Selecting variables by AIC stepwise function
+Examine our variable selection result 
+```{r, include=FALSE}
+library(MASS)
+lm.null <- lm(crimerate ~., data = mydata[, -c(1,2,3,10)])
+lm.full <- lm(crimerate ~ (.)^2, data = mydata[, -c(1,2,3,10)])
+stepwise.selection <- stepAIC(lm.null, direction = "both", scope = list(upper = lm.full, lower = lm.null))
+
+```
+
+```{r}
+summary(stepwise.selection)
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(stepwise.selection)
+```
+
+
+
+
+
+
